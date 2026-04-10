@@ -374,7 +374,10 @@
         ==
       =/  out-headers=(list [key=@t value=@t])
         %+  weld
-          ~[['content-type' 'application/json'] ['accept' 'application/json']]
+          :~  ['content-type' 'application/json']
+              ['accept' 'application/json']
+              ['user-agent' 'urbit-mcp']
+          ==
         headers.u.srv
       =/  cookie=(unit @t)  (~(get by cookies) sid)
       =?  out-headers  ?=(^ cookie)
@@ -639,10 +642,13 @@
       %-  give-http  :^  eyre-id  404
       ~[cors ['content-type' 'application/json']]
       (some (as-octs:mimes:html '{"error":"server not found in tool prefix"}'))
-    ::  build auth headers
+    ::  build auth headers. user-agent is required by some APIs
+    ::  (notably GitHub) and harmless elsewhere.
     =/  out-headers=(list [key=@t value=@t])
       %+  weld
-        ~[['accept' 'application/json']]
+        :~  ['accept' 'application/json']
+            ['user-agent' 'urbit-mcp']
+        ==
       headers.u.srv
     =/  cookie=(unit @t)  (~(get by cookies) `@tas`sid)
     =?  out-headers  ?=(^ cookie)
