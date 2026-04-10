@@ -71,6 +71,7 @@ var App = {
       opt.textContent = '— relay has no providers configured —';
       opt.disabled = true;
       sel.appendChild(opt);
+      this.updateManagedScopesPreview();
       return;
     }
     for (var i = 0; i < this.relayProviders.length; i++) {
@@ -82,6 +83,21 @@ var App = {
       sel.appendChild(o);
     }
     if (current) sel.value = current;
+    if (!sel.dataset.bound) {
+      var self = this;
+      sel.addEventListener('change', function() { self.updateManagedScopesPreview(); });
+      sel.dataset.bound = '1';
+    }
+    this.updateManagedScopesPreview();
+  },
+
+  updateManagedScopesPreview: function() {
+    var sel = document.getElementById('managed-provider-select');
+    var preview = document.getElementById('managed-scopes-preview');
+    if (!sel || !preview) return;
+    var opt = sel.options[sel.selectedIndex];
+    var scopes = (opt && opt.dataset && opt.dataset.scopes) || '';
+    preview.textContent = scopes || '— no scopes configured —';
   },
 
   updateEndpoint: function() {
@@ -194,28 +210,25 @@ var App = {
       var data;
       if (isManaged) {
         // Managed providers: id comes from the dropdown of relay
-        // providers, scopes from the selected option's default.
+        // providers. Scopes are owned by the relay — we don't send
+        // them from the ship at all. The ship stores an empty
+        // scopes field and the relay uses its configured default
+        // during the authorize flow.
         var sel = document.getElementById('managed-provider-select');
         if (!sel || !sel.value) {
           alert('Pick a provider from the dropdown');
           return;
         }
-        var id = sel.value;
-        var opt = sel.options[sel.selectedIndex];
-        var scopes = (opt && opt.dataset.scopes) || '';
-        // allow the user to override scopes via the scopes field if set
-        var scopeOverride = f.elements['scopes'].value.trim();
-        if (scopeOverride) scopes = scopeOverride;
         data = {
           action: 'add-provider',
-          id: id,
+          id: sel.value,
           'auth-url': '',
           'token-url': '',
           'revoke-url': null,
           'client-id': '',
           'client-secret': 'managed',
           'redirect-uri': '',
-          scopes: scopes
+          scopes: ''
         };
       } else {
         var localId = f.elements['id'].value.trim().toLowerCase();
@@ -819,7 +832,7 @@ var App = {
         '<div class="card-row">' +
           '<div class="card-identity">' +
             '<div class="card-name">' + this.esc(p.id) + '</div>' +
-            '<div class="card-sub">' + (isManaged ? 'managed via relay' : 'oauth2 + pkce') + '</div>' +
+            '<div class="card-sub">' + (isManaged ? 'managed via tlon hosting' : 'oauth2 + pkce') + '</div>' +
           '</div>' +
           '<div class="card-badges">' +
             (isManaged ? '<span class="badge built-in">managed</span>' : '') +

@@ -222,8 +222,8 @@
           <label class="field field-full toggle-row">
             <input type="checkbox" name="managed" id="oauth-managed-toggle">
             <span class="toggle-label">
-              <strong>Managed via oauth-proxy</strong>
-              <span class="field-hint">client credentials live on the relay; the ship only needs an ID and scopes</span>
+              <strong>Managed via Tlon Hosting</strong>
+              <span class="field-hint">client credentials and scopes live on the relay; the ship just picks a provider</span>
             </span>
           </label>
 
@@ -275,11 +275,17 @@
             </label>
           </div>
 
-          <label class="field field-full">
+          <label class="field field-full managed-hide">
             <span class="field-label">SCOPES</span>
-            <input type="text" name="scopes" placeholder="openid email https://www.googleapis.com/auth/gmail.readonly">
-            <span class="field-hint">space-separated · optional for managed providers</span>
+            <input type="text" name="scopes" placeholder="openid email profile">
+            <span class="field-hint">space-separated</span>
           </label>
+
+          <div class="field field-full managed-only">
+            <span class="field-label">SCOPES</span>
+            <code id="managed-scopes-preview" class="scopes-preview">—</code>
+            <span class="field-hint">configured on the relay · edit on the oauth-proxy to change</span>
+          </div>
 
           <div class="form-actions">
             <button type="submit" class="primary-btn">Commit provider</button>
