@@ -227,11 +227,19 @@
             </span>
           </label>
 
+          <label class="field field-full managed-only">
+            <span class="field-label">PROVIDER</span>
+            <select name="managed-id" id="managed-provider-select">
+              <option value="" disabled>— loading from relay —</option>
+            </select>
+            <span class="field-hint">pick from the providers configured on the oauth-proxy</span>
+          </label>
+
           <div class="form-grid">
-            <label class="field">
+            <label class="field managed-hide">
               <span class="field-label">ID</span>
-              <input type="text" name="id" placeholder="google" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" required>
-              <span class="field-hint">@tas format · must match a provider id on the relay</span>
+              <input type="text" name="id" placeholder="my-provider" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*">
+              <span class="field-hint">@tas format</span>
             </label>
             <label class="field managed-hide">
               <span class="field-label">CLIENT ID</span>

@@ -1,6 +1,7 @@
 var App = {
   servers: [],
   oauthProviders: [],
+  relayProviders: [],
   editing: null,
   editingProvider: null,
   openTools: null,
@@ -40,20 +41,47 @@ var App = {
     Promise.all([
       McpProxyAPI.getServers(),
       OAuthAPI.getProviders().catch(function() { return { providers: [] }; }),
-      McpProxyAPI.getClientKey().catch(function() { return {}; })
+      McpProxyAPI.getClientKey().catch(function() { return {}; }),
+      OAuthAPI.getRelayProviders().catch(function() { return { providers: [] }; })
     ]).then(function(results) {
       self.ship = results[0].ship || '';
       self.servers = results[0].servers || [];
       self.oauthProviders = results[1].providers || [];
       self.clientKey = results[2].clientKey || null;
+      self.relayProviders = results[3].providers || [];
       self.updateEndpoint();
       self.updateStats();
       self.render();
       self.renderOAuth();
       self.populateOAuthSelects();
+      self.populateRelayProviderSelect();
     }).catch(function(e) {
       console.error(e);
     });
+  },
+
+  populateRelayProviderSelect: function() {
+    var sel = document.getElementById('managed-provider-select');
+    if (!sel) return;
+    var current = sel.value;
+    sel.innerHTML = '';
+    if (this.relayProviders.length === 0) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— relay has no providers configured —';
+      opt.disabled = true;
+      sel.appendChild(opt);
+      return;
+    }
+    for (var i = 0; i < this.relayProviders.length; i++) {
+      var p = this.relayProviders[i];
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.displayName || p.id;
+      o.dataset.scopes = p.scopes || '';
+      sel.appendChild(o);
+    }
+    if (current) sel.value = current;
   },
 
   updateEndpoint: function() {
@@ -163,13 +191,21 @@ var App = {
       e.preventDefault();
       var f = e.target;
       var isManaged = !!(managedToggle && managedToggle.checked);
-      var id = f.elements['id'].value.trim().toLowerCase();
       var data;
       if (isManaged) {
-        // Managed providers: only id + scopes are meaningful.
-        // The relay holds client creds and URLs. We store empty
-        // strings for the local-flow fields; the agent detects
-        // "managed" by auth-url === ''.
+        // Managed providers: id comes from the dropdown of relay
+        // providers, scopes from the selected option's default.
+        var sel = document.getElementById('managed-provider-select');
+        if (!sel || !sel.value) {
+          alert('Pick a provider from the dropdown');
+          return;
+        }
+        var id = sel.value;
+        var opt = sel.options[sel.selectedIndex];
+        var scopes = (opt && opt.dataset.scopes) || '';
+        // allow the user to override scopes via the scopes field if set
+        var scopeOverride = f.elements['scopes'].value.trim();
+        if (scopeOverride) scopes = scopeOverride;
         data = {
           action: 'add-provider',
           id: id,
@@ -179,12 +215,13 @@ var App = {
           'client-id': '',
           'client-secret': 'managed',
           'redirect-uri': '',
-          scopes: f.elements['scopes'].value.trim()
+          scopes: scopes
         };
       } else {
+        var localId = f.elements['id'].value.trim().toLowerCase();
         data = {
           action: 'add-provider',
-          id: id,
+          id: localId,
           'auth-url': f.elements['auth-url'].value.trim(),
           'token-url': f.elements['token-url'].value.trim(),
           'revoke-url': f.elements['revoke-url'].value.trim() || null,

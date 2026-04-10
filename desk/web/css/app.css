@@ -660,6 +660,9 @@ body {
 
 /* hide local-flow fields when a managed provider is being added */
 .form-sheet.is-managed .managed-hide { display: none !important; }
+/* inverse: only show these when managed mode is on */
+.managed-only { display: none; }
+.form-sheet.is-managed .managed-only { display: flex; }
 
 .form-section {
   border-top: 1px dashed var(--line);

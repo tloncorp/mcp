@@ -88,6 +88,7 @@ window.OAuthAPI = {
 
   getProviders: function() { return this.get('/providers'); },
   getGrants: function() { return this.get('/grants'); },
+  getRelayProviders: function() { return this.get('/relay-providers'); },
 
   addProvider: function(data) { return this.post(data); },
   updateProvider: function(data) { return this.post(data); },

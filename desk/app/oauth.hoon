@@ -16,6 +16,8 @@
 =/  refreshing  *(set provider-id:oauth)  ::  in-flight refresh locks (non-persisted)
 ::  in-flight remote-connect flows: wire-id -> {eyre-id, return-to}
 =/  remote-pending  *(map @t [eyre-id=@ta return-to=@t])
+::  in-flight relay provider list fetches: wire-id -> eyre-id
+=/  relay-list-pending  *(map @t @ta)
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -367,6 +369,27 @@
           [%grants ~]
         :_  this
         (give-json eyre-id (build-grants-json ~))
+      ::
+      ::  pass-through list of provider instances the relay supports
+      ::
+          [%'relay-providers' ~]
+        ?~  relay-url
+          :_  this
+          (give-http eyre-id 503 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay not configured","providers":[]}')))
+        =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
+        =.  relay-list-pending  (~(put by relay-list-pending) wire-id eyre-id)
+        =/  relay-url-full=@t  (rap 3 ~[u.relay-url '/v1/providers'])
+        :_  this
+        :~  :*  %pass  /iris/relay-list/[wire-id]
+                %arvo  %i  %request
+                :*  %'GET'
+                    relay-url-full
+                    ~[['accept' 'application/json']]
+                    ~
+                ==
+                *outbound-config:iris
+            ==
+        ==
       ==
     ?:  =(%'POST' method.request.req)
       =/  body=@t
@@ -480,6 +503,30 @@
       ~?  !accepted.sign  [%oauth %binding-rejected binding.sign]
       `this
     `this
+  ::
+  ::  relay /v1/providers passthrough: forward the JSON body back to the browser
+  ::
+      [%iris %relay-list @ ~]
+    =/  wire-id=@t  i.t.t.wire
+    =/  pnd-eid=(unit @ta)  (~(get by relay-list-pending) wire-id)
+    =.  relay-list-pending  (~(del by relay-list-pending) wire-id)
+    ?~  pnd-eid  `this
+    ?.  ?=([%iris %http-response *] sign)
+      :_  this
+      (give-http u.pnd-eid 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable","providers":[]}')))
+    =/  resp=client-response:iris  client-response.sign
+    ?.  ?=(%finished -.resp)
+      :_  this
+      (give-http u.pnd-eid 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable","providers":[]}')))
+    ?.  =(200 status-code.response-header.resp)
+      :_  this
+      (give-http u.pnd-eid 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay rejected","providers":[]}')))
+    ?~  full-file.resp
+      :_  this
+      (give-http u.pnd-eid 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay empty body","providers":[]}')))
+    =/  body=@t  `@t`q.data.u.full-file.resp
+    :_  this
+    (give-http u.pnd-eid 200 ~[['content-type' 'application/json']] (some (as-octs:mimes:html body)))
   ::
   ::  relay /v1/start response: extract authorize_url, 302 the browser
   ::
