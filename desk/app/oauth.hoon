@@ -11,9 +11,11 @@
 --
 ::
 %-  agent:dbug
-=|  state-0:oauth
+=|  state-1:oauth
 =*  state  -
 =/  refreshing  *(set provider-id:oauth)  ::  in-flight refresh locks (non-persisted)
+::  in-flight remote-connect flows: wire-id -> {eyre-id, return-to}
+=/  remote-pending  *(map @t [eyre-id=@ta return-to=@t])
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -34,26 +36,28 @@
   =/  old  (mule |.(!<(versioned-state:oauth old-state)))
   ?:  ?=(%| -.old)
     on-init
-  ?-  -.p.old
-      %0
-    ::  re-register refresh timers for all grants with expiry
-    =/  eyre-cards=(list card)
-      :~  [%pass /eyre/connect %arvo %e %connect [~ /oauth] %oauth]
-      ==
-    =/  timer-cards=(list card)
-      %+  murn  ~(tap by grants.p.old)
-      |=  [pid=provider-id:oauth gra=grant:oauth]
-      ?~  expires-at.gra  ~
-      ?~  refresh-token.gra  ~
-      =/  refresh-time=@da
-        =/  margin=@dr  ~m5
-        ?:  (gth u.expires-at.gra (add now.bowl margin))
-          (sub u.expires-at.gra margin)
-        (add now.bowl ~s5)
-      `[%pass /timer/refresh/[pid] %arvo %b %wait refresh-time]
-    :_  this(state p.old)
-    (weld eyre-cards timer-cards)
-  ==
+  =/  new-state=state-1:oauth
+    ?-  -.p.old
+        %1  p.old
+        %0  [%1 providers.p.old grants.p.old pending.p.old ~]
+    ==
+  ::  re-register refresh timers for all grants with expiry
+  =/  eyre-cards=(list card)
+    :~  [%pass /eyre/connect %arvo %e %connect [~ /oauth] %oauth]
+    ==
+  =/  timer-cards=(list card)
+    %+  murn  ~(tap by grants.new-state)
+    |=  [pid=provider-id:oauth gra=grant:oauth]
+    ?~  expires-at.gra  ~
+    ?~  refresh-token.gra  ~
+    =/  refresh-time=@da
+      =/  margin=@dr  ~m5
+      ?:  (gth u.expires-at.gra (add now.bowl margin))
+        (sub u.expires-at.gra margin)
+      (add now.bowl ~s5)
+    `[%pass /timer/refresh/[pid] %arvo %b %wait refresh-time]
+  :_  this(state new-state)
+  (weld eyre-cards timer-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -62,6 +66,12 @@
   ?+  mark  (on-poke:def mark vase)
       %oauth-action
     (handle-action !<(action:oauth vase))
+  ::
+      %json
+    =/  jon=json  !<(json vase)
+    =/  act=(unit action:oauth)  (action-from-json jon)
+    ?~  act  `this
+    (handle-action u.act)
   ::
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
@@ -194,6 +204,36 @@
               *outbound-config:iris
           ==
       ==
+    ::
+        %set-relay-url
+      =.  relay-url  url.act
+      `this
+    ::
+        %remote-connect
+      ::  initiated via handle-http; no-op as a direct agent poke
+      `this
+    ::
+        %receive-grant
+      ::  poked locally (pioneer → click thread → %oauth)
+      ?>  =(our src):bowl
+      =.  grants  (~(put by grants) provider-id.act grant.act)
+      ::  schedule refresh timer if there's an expiry
+      =/  timer-cards=(list card)
+        ?~  expires-at.grant.act  ~
+        ?~  refresh-token.grant.act  ~
+        =/  refresh-time=@da
+          =/  margin=@dr  ~m5
+          ?:  (gth u.expires-at.grant.act (add now.bowl margin))
+            (sub u.expires-at.grant.act margin)
+          (add now.bowl ~s5)
+        ^-  (list card)
+        :~  [%pass /timer/refresh/[provider-id.act] %arvo %b %wait refresh-time]
+        ==
+      =/  notify=(list card)
+        ^-  (list card)
+        :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-added provider-id.act grant.act])]
+        ==
+      [(weld timer-cards notify) this]
     ==
   ::
   ::  HTTP request handler
@@ -357,6 +397,42 @@
         =/  resp=@t  (en:json:html (frond:enjs:format 'url' s+auth))
         :_  this
         (give-http eyre-id 200 ~[['content-type' 'application/json']] (some (as-octs:mimes:html resp)))
+      ::  special handling for %remote-connect: call oauth-proxy relay
+      ::
+      ?:  ?=(%remote-connect -.u.act)
+        ?~  relay-url
+          :_  this
+          (give-http eyre-id 503 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay not configured"}')))
+        ::  scry own +code; used as Bearer token to the relay
+        =/  code=@p
+          .^(@p %j /(scot %p our.bowl)/code/(scot %da now.bowl)/(scot %p our.bowl))
+        =/  code-str=@t  (crip (slag 1 (scow %p code)))
+        =/  ship-str=@t  (crip (slag 1 (scow %p our.bowl)))
+        =/  body=@t
+          %-  en:json:html
+          %-  pairs:enjs:format
+          :~  ['provider' s+(scot %tas id.u.act)]
+              ['return_to' s+return-to.u.act]
+          ==
+        =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
+        =.  remote-pending
+          (~(put by remote-pending) wire-id [eyre-id return-to.u.act])
+        =/  relay-start=@t  (rap 3 ~[u.relay-url '/v1/start'])
+        :_  this
+        :~  :*  %pass  /iris/relay-start/[wire-id]
+                %arvo  %i  %request
+                :*  %'POST'
+                    relay-start
+                    :~  ['content-type' 'application/json']
+                        ['accept' 'application/json']
+                        ['x-ship' ship-str]
+                        ['authorization' (rap 3 ~['Bearer ' code-str])]
+                    ==
+                    `(as-octs:mimes:html body)
+                ==
+                *outbound-config:iris
+            ==
+        ==
       ::  all other actions
       ::
       =/  result  (handle-action u.act)
@@ -399,6 +475,50 @@
       ~?  !accepted.sign  [%oauth %binding-rejected binding.sign]
       `this
     `this
+  ::
+  ::  relay /v1/start response: extract authorize_url, 302 the browser
+  ::
+      [%iris %relay-start @ ~]
+    =/  wire-id=@t  i.t.t.wire
+    =/  pnd=(unit [eyre-id=@ta return-to=@t])
+      (~(get by remote-pending) wire-id)
+    =.  remote-pending  (~(del by remote-pending) wire-id)
+    ?~  pnd  `this
+    ?.  ?=([%iris %http-response *] sign)
+      ~&  [%oauth %relay-start-failed %bad-sign]
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable"}')))
+    =/  resp=client-response:iris  client-response.sign
+    ?.  ?=(%finished -.resp)
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable"}')))
+    ?.  =(200 status-code.response-header.resp)
+      ~&  [%oauth %relay-start-failed %status status-code.response-header.resp]
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay rejected"}')))
+    ?~  full-file.resp
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay empty body"}')))
+    =/  body=@t  `@t`q.data.u.full-file.resp
+    =/  jon=(unit json)  (de:json:html body)
+    ?~  jon
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay bad json"}')))
+    ?.  ?=(%o -.u.jon)
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay bad json"}')))
+    =/  url-val=(unit json)  (~(get by p.u.jon) 'authorize_url')
+    ?~  url-val
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay no url"}')))
+    ?.  ?=(%s -.u.url-val)
+      :_  this
+      (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay bad url"}')))
+    =/  auth-url=@t  p.u.url-val
+    ::  respond to the original POST with the URL so the GUI can window.open it
+    =/  resp-body=@t  (en:json:html (frond:enjs:format 'url' s+auth-url))
+    :_  this
+    (give-http eyre-id.u.pnd 200 ~[['content-type' 'application/json']] (some (as-octs:mimes:html resp-body)))
   ::
   ::  token exchange response
   ::
@@ -790,6 +910,65 @@
   ::
       %'force-refresh'
     [%force-refresh `@tas`((ot ~[id+so]) jon)]
+  ::
+      %'remote-connect'
+    ?>  ?=(%o -.jon)
+    =/  id-val=json  (~(got by p.jon) 'id')
+    =/  rt-val=json  (~(got by p.jon) 'return-to')
+    ?>  ?=(%s -.id-val)
+    ?>  ?=(%s -.rt-val)
+    [%remote-connect `@tas`p.id-val p.rt-val]
+  ::
+      %'set-relay-url'
+    ?>  ?=(%o -.jon)
+    =/  url-val=(unit json)  (~(get by p.jon) 'url')
+    =/  url=(unit @t)
+      ?~  url-val  ~
+      ?.  ?=(%s -.u.url-val)  ~
+      ?:  =('' p.u.url-val)  ~
+      `p.u.url-val
+    [%set-relay-url url]
+  ::
+      %'receive-grant'
+    ?>  ?=(%o -.jon)
+    =/  pid-val=json  (~(got by p.jon) 'providerId')
+    ?>  ?=(%s -.pid-val)
+    =/  pid=@tas  `@tas`p.pid-val
+    =/  grant-obj=json  (~(got by p.jon) 'grant')
+    ?>  ?=(%o -.grant-obj)
+    =/  access-val=json  (~(got by p.grant-obj) 'accessToken')
+    ?>  ?=(%s -.access-val)
+    =/  access=@t  p.access-val
+    ::  optional refresh token
+    =/  refresh=(unit @t)
+      =/  rv=(unit json)  (~(get by p.grant-obj) 'refreshToken')
+      ?~  rv  ~
+      ?.  ?=(%s -.u.rv)  ~
+      ?:  =('' p.u.rv)  ~
+      `p.u.rv
+    ::  optional token type (default to "Bearer")
+    =/  ttype=@t
+      =/  tv=(unit json)  (~(get by p.grant-obj) 'tokenType')
+      ?~  tv  'Bearer'
+      ?.  ?=(%s -.u.tv)  'Bearer'
+      ?:  =('' p.u.tv)  'Bearer'
+      p.u.tv
+    ::  optional expires-at (RFC3339 -> @da via slav)
+    =/  expires-at=(unit @da)
+      =/  ev=(unit json)  (~(get by p.grant-obj) 'expiresAt')
+      ?~  ev  ~
+      ?.  ?=(%s -.u.ev)  ~
+      ?:  =('' p.u.ev)  ~
+      =/  res  (mule |.(`@da`(slav %da p.u.ev)))
+      ?:  ?=(%| -.res)  ~
+      `p.res
+    =/  scopes=@t
+      =/  sv=(unit json)  (~(get by p.grant-obj) 'scopes')
+      ?~  sv  ''
+      ?.  ?=(%s -.u.sv)  ''
+      p.u.sv
+    =/  g=grant:oauth  [access refresh ttype expires-at scopes pid]
+    [%receive-grant pid g]
   ==
 ::
 ::  JSON builders

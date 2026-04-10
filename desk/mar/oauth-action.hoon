@@ -27,15 +27,7 @@
             redirect-uri+so
             scopes+so
         ==
-      =/  $:  id=@t
-              auth-url=@t
-              token-url=@t
-              revoke-url=(unit @t)
-              client-id=@t
-              client-secret=@t
-              redirect-uri=@t
-              scopes=@t
-          ==
+      =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
         (f jon)
       [%add-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes]]
     ::
@@ -54,15 +46,7 @@
             redirect-uri+so
             scopes+so
         ==
-      =/  $:  id=@t
-              auth-url=@t
-              token-url=@t
-              revoke-url=(unit @t)
-              client-id=@t
-              client-secret=@t
-              redirect-uri=@t
-              scopes=@t
-          ==
+      =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
         (f jon)
       [%update-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes]]
     ::
@@ -74,6 +58,24 @@
     ::
         %'revoke'
       [%revoke `@tas`((ot ~[id+so]) jon)]
+    ::
+        %'remote-connect'
+      ?>  ?=(%o -.jon)
+      =/  id-val=json  (~(got by p.jon) 'id')
+      =/  rt-val=json  (~(got by p.jon) 'return-to')
+      ?>  ?=(%s -.id-val)
+      ?>  ?=(%s -.rt-val)
+      [%remote-connect `@tas`p.id-val p.rt-val]
+    ::
+        %'set-relay-url'
+      ?>  ?=(%o -.jon)
+      =/  url-val=(unit json)  (~(get by p.jon) 'url')
+      =/  url=(unit @t)
+        ?~  url-val  ~
+        ?.  ?=(%s -.u.url-val)  ~
+        ?:  =('' p.u.url-val)  ~
+        `p.u.url-val
+      [%set-relay-url url]
     ==
   --
 ++  grad  %noun

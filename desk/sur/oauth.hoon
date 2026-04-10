@@ -60,8 +60,21 @@
       pending=(map @t pending-auth)
   ==
 ::
+::  state-1 adds relay-url for remote-connect flows through oauth-proxy.
+::  when set, providers can be "managed" (client credentials live on
+::  the relay, ship just signs requests with its +code).
+::
++$  state-1
+  $:  %1
+      providers=(map provider-id provider-config)
+      grants=(map provider-id grant)
+      pending=(map @t pending-auth)
+      relay-url=(unit @t)         ::  e.g. https://oauth.tlon.network
+  ==
+::
 +$  versioned-state
   $%  state-0
+      state-1
   ==
 ::
 +$  action
@@ -72,6 +85,9 @@
       [%disconnect id=provider-id]
       [%revoke id=provider-id]
       [%force-refresh id=provider-id]
+      [%remote-connect id=provider-id return-to=@t]
+      [%set-relay-url url=(unit @t)]
+      [%receive-grant =provider-id =grant]
   ==
 ::
 +$  update
