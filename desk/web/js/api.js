@@ -93,5 +93,8 @@ window.OAuthAPI = {
   updateProvider: function(data) { return this.post(data); },
   removeProvider: function(id) { return this.post({ action: 'remove-provider', id: id }); },
   connect: function(id) { return this.post({ action: 'connect', id: id }); },
+  remoteConnect: function(id, returnTo) {
+    return this.post({ action: 'remote-connect', id: id, 'return-to': returnTo });
+  },
   disconnect: function(id) { return this.post({ action: 'disconnect', id: id }); }
 };

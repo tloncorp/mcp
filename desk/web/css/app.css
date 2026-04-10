@@ -607,6 +607,60 @@ body {
   font-weight: 500;
 }
 
+/* managed provider toggle */
+.toggle-row {
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.toggle-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border: 1px solid var(--line-hi);
+  border-radius: 2px;
+  background: var(--ink-2);
+  margin: 2px 0 0 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.toggle-row input[type="checkbox"]:checked {
+  background: var(--saffron);
+  border-color: var(--saffron);
+}
+
+.toggle-row input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 0;
+  width: 5px; height: 10px;
+  border: solid var(--ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--paper);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.toggle-label strong { font-weight: 500; }
+
+/* hide local-flow fields when a managed provider is being added */
+.form-sheet.is-managed .managed-hide { display: none !important; }
+
 .form-section {
   border-top: 1px dashed var(--line);
   padding-top: var(--s-3);

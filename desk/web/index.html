@@ -219,38 +219,46 @@
           <span class="drawer-text">New provider</span>
         </summary>
         <form id="oauth-add-form" class="form-sheet" autocomplete="off">
-          <div class="form-grid">
-            <label class="field">
-              <span class="field-label">ID</span>
-              <input type="text" name="id" placeholder="x" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" required>
-              <span class="field-hint">@tas format</span>
-            </label>
-            <label class="field">
-              <span class="field-label">CLIENT ID</span>
-              <input type="text" name="client-id" required>
-            </label>
-          </div>
-
-          <label class="field field-full">
-            <span class="field-label">CLIENT SECRET</span>
-            <input type="password" name="client-secret" required>
+          <label class="field field-full toggle-row">
+            <input type="checkbox" name="managed" id="oauth-managed-toggle">
+            <span class="toggle-label">
+              <strong>Managed via oauth-proxy</strong>
+              <span class="field-hint">client credentials live on the relay; the ship only needs an ID and scopes</span>
+            </span>
           </label>
 
           <div class="form-grid">
             <label class="field">
-              <span class="field-label">AUTH URL</span>
-              <input type="url" name="auth-url" placeholder="https://provider.com/oauth/authorize" required>
+              <span class="field-label">ID</span>
+              <input type="text" name="id" placeholder="google" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" required>
+              <span class="field-hint">@tas format · must match a provider id on the relay</span>
             </label>
-            <label class="field">
-              <span class="field-label">TOKEN URL</span>
-              <input type="url" name="token-url" placeholder="https://provider.com/oauth/token" required>
+            <label class="field managed-hide">
+              <span class="field-label">CLIENT ID</span>
+              <input type="text" name="client-id">
             </label>
           </div>
 
-          <div class="form-grid">
+          <label class="field field-full managed-hide">
+            <span class="field-label">CLIENT SECRET</span>
+            <input type="password" name="client-secret">
+          </label>
+
+          <div class="form-grid managed-hide">
+            <label class="field">
+              <span class="field-label">AUTH URL</span>
+              <input type="url" name="auth-url" placeholder="https://provider.com/oauth/authorize">
+            </label>
+            <label class="field">
+              <span class="field-label">TOKEN URL</span>
+              <input type="url" name="token-url" placeholder="https://provider.com/oauth/token">
+            </label>
+          </div>
+
+          <div class="form-grid managed-hide">
             <label class="field">
               <span class="field-label">REDIRECT URI</span>
-              <input type="url" name="redirect-uri" required>
+              <input type="url" name="redirect-uri">
               <span class="field-hint">must match provider config</span>
             </label>
             <label class="field">
@@ -261,8 +269,8 @@
 
           <label class="field field-full">
             <span class="field-label">SCOPES</span>
-            <input type="text" name="scopes" placeholder="read write offline.access">
-            <span class="field-hint">space-separated</span>
+            <input type="text" name="scopes" placeholder="openid email https://www.googleapis.com/auth/gmail.readonly">
+            <span class="field-hint">space-separated · optional for managed providers</span>
           </label>
 
           <div class="form-actions">

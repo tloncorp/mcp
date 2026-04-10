@@ -149,22 +149,54 @@ var App = {
       }).catch(function(e) { alert('Failed: ' + e.message); });
     });
 
-    document.getElementById('oauth-add-form').addEventListener('submit', function(e) {
+    var oauthForm = document.getElementById('oauth-add-form');
+    var managedToggle = document.getElementById('oauth-managed-toggle');
+    if (managedToggle && oauthForm) {
+      var syncManaged = function() {
+        oauthForm.classList.toggle('is-managed', managedToggle.checked);
+      };
+      managedToggle.addEventListener('change', syncManaged);
+      syncManaged();
+    }
+
+    oauthForm.addEventListener('submit', function(e) {
       e.preventDefault();
       var f = e.target;
-      var data = {
-        action: 'add-provider',
-        id: f.elements['id'].value.trim().toLowerCase(),
-        'auth-url': f.elements['auth-url'].value.trim(),
-        'token-url': f.elements['token-url'].value.trim(),
-        'revoke-url': f.elements['revoke-url'].value.trim() || null,
-        'client-id': f.elements['client-id'].value.trim(),
-        'client-secret': f.elements['client-secret'].value.trim(),
-        'redirect-uri': f.elements['redirect-uri'].value.trim(),
-        scopes: f.elements['scopes'].value.trim()
-      };
+      var isManaged = !!(managedToggle && managedToggle.checked);
+      var id = f.elements['id'].value.trim().toLowerCase();
+      var data;
+      if (isManaged) {
+        // Managed providers: only id + scopes are meaningful.
+        // The relay holds client creds and URLs. We store empty
+        // strings for the local-flow fields; the agent detects
+        // "managed" by auth-url === ''.
+        data = {
+          action: 'add-provider',
+          id: id,
+          'auth-url': '',
+          'token-url': '',
+          'revoke-url': null,
+          'client-id': '',
+          'client-secret': 'managed',
+          'redirect-uri': '',
+          scopes: f.elements['scopes'].value.trim()
+        };
+      } else {
+        data = {
+          action: 'add-provider',
+          id: id,
+          'auth-url': f.elements['auth-url'].value.trim(),
+          'token-url': f.elements['token-url'].value.trim(),
+          'revoke-url': f.elements['revoke-url'].value.trim() || null,
+          'client-id': f.elements['client-id'].value.trim(),
+          'client-secret': f.elements['client-secret'].value.trim(),
+          'redirect-uri': f.elements['redirect-uri'].value.trim(),
+          scopes: f.elements['scopes'].value.trim()
+        };
+      }
       OAuthAPI.addProvider(data).then(function() {
         f.reset();
+        if (managedToggle) { managedToggle.checked = false; oauthForm.classList.remove('is-managed'); }
         var drawer = f.closest('details');
         if (drawer) drawer.open = false;
         self.loadAll();
@@ -461,10 +493,21 @@ var App = {
 
   connectProvider: function(id) {
     var self = this;
-    OAuthAPI.connect(id).then(function(data) {
+    var prov = this.oauthProviders.find(function(p) { return p.id === id; });
+    var isManaged = prov && (!prov.authUrl || prov.authUrl === '');
+    var call;
+    if (isManaged) {
+      var returnTo = window.location.origin + '/apps/mcp/#oauth';
+      call = OAuthAPI.remoteConnect(id, returnTo);
+    } else {
+      call = OAuthAPI.connect(id);
+    }
+    call.then(function(data) {
       if (data && data.url) {
         window.open(data.url, '_blank');
         self.toast('Authorize in new tab, then reload');
+      } else {
+        alert('Relay returned no authorize URL');
       }
     }).catch(function(e) { alert('Connect failed: ' + e.message); });
   },
@@ -729,6 +772,7 @@ var App = {
       var p = this.oauthProviders[k];
       if (this.editingProvider === p.id) { html += this.renderProviderEdit(p); continue; }
       var connected = p.hasGrant;
+      var isManaged = !p.authUrl;
       var users = usageMap[p.id] || [];
       var usersHtml = users.length > 0
         ? users.map(function(u) { return '<span class="tag">' + App.esc(u) + '</span>'; }).join('')
@@ -738,9 +782,10 @@ var App = {
         '<div class="card-row">' +
           '<div class="card-identity">' +
             '<div class="card-name">' + this.esc(p.id) + '</div>' +
-            '<div class="card-sub">oauth2 + pkce</div>' +
+            '<div class="card-sub">' + (isManaged ? 'managed via relay' : 'oauth2 + pkce') + '</div>' +
           '</div>' +
           '<div class="card-badges">' +
+            (isManaged ? '<span class="badge built-in">managed</span>' : '') +
             '<span class="badge ' + (connected ? 'connected' : 'disconnected') + '">' +
               (connected ? 'connected' : 'disconnected') +
             '</span>' +

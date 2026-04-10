@@ -408,12 +408,17 @@
           .^(@p %j /(scot %p our.bowl)/code/(scot %da now.bowl)/(scot %p our.bowl))
         =/  code-str=@t  (crip (slag 1 (scow %p code)))
         =/  ship-str=@t  (crip (slag 1 (scow %p our.bowl)))
-        =/  body=@t
-          %-  en:json:html
-          %-  pairs:enjs:format
+        ::  look up provider's saved scopes to forward to the relay
+        =/  cfg=(unit provider-config:oauth)  (~(get by providers) id.u.act)
+        =/  scopes=@t  ?~(cfg '' scopes.u.cfg)
+        =/  fields=(list [@t json])
           :~  ['provider' s+(scot %tas id.u.act)]
               ['return_to' s+return-to.u.act]
           ==
+        =?  fields  !=('' scopes)
+          (snoc fields ['scopes' s+scopes])
+        =/  body=@t
+          (en:json:html [%o (malt fields)])
         =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
         =.  remote-pending
           (~(put by remote-pending) wire-id [eyre-id return-to.u.act])
