@@ -336,7 +336,7 @@ body {
   font-size: 12px;
   line-height: 1.6;
   color: var(--paper-dim);
-  max-width: 100ch;
+  max-width: 80ch;
 }
 
 .code-mode-sub em {
