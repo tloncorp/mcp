@@ -80,6 +80,11 @@ var App = {
       o.value = p.id;
       o.textContent = p.displayName || p.id;
       o.dataset.scopes = p.scopes || '';
+      // suggestedUpstream: carry the whole blob so the submit
+      // handler can auto-create the matching upstream server
+      if (p.suggestedUpstream) {
+        o.dataset.upstream = JSON.stringify(p.suggestedUpstream);
+      }
       sel.appendChild(o);
     }
     if (current) sel.value = current;
@@ -219,6 +224,11 @@ var App = {
           alert('Pick a provider from the dropdown');
           return;
         }
+        var selectedOpt = sel.options[sel.selectedIndex];
+        var hint = null;
+        if (selectedOpt && selectedOpt.dataset.upstream) {
+          try { hint = JSON.parse(selectedOpt.dataset.upstream); } catch (e) {}
+        }
         data = {
           action: 'add-provider',
           id: sel.value,
@@ -230,6 +240,9 @@ var App = {
           'redirect-uri': '',
           scopes: ''
         };
+        // stash for the chained addServer below
+        data._upstreamHint = hint;
+        data._providerId = sel.value;
       } else {
         var localId = f.elements['id'].value.trim().toLowerCase();
         data = {
@@ -244,7 +257,31 @@ var App = {
           scopes: f.elements['scopes'].value.trim()
         };
       }
+      var hint = data._upstreamHint;
+      var providerId = data._providerId;
+      delete data._upstreamHint;
+      delete data._providerId;
       OAuthAPI.addProvider(data).then(function() {
+        // if the relay suggested an upstream for this provider,
+        // auto-create it and link it to the new oauth provider
+        if (hint && hint.mode && providerId) {
+          return McpProxyAPI.addServer(
+            providerId,
+            hint.name || providerId,
+            hint.url || '',
+            [],
+            {
+              mode: hint.mode,
+              oauthProvider: providerId,
+              schemaUrl: hint.schemaUrl || null
+            }
+          ).catch(function(e) {
+            // non-fatal: provider was added, upstream failed
+            console.warn('upstream auto-create failed', e);
+            self.toast('Provider added, upstream failed: ' + e.message);
+          });
+        }
+      }).then(function() {
         f.reset();
         if (managedToggle) { managedToggle.checked = false; oauthForm.classList.remove('is-managed'); }
         var drawer = f.closest('details');
