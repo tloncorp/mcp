@@ -1589,20 +1589,40 @@
   ?:  =('' hdr)  ~
   `['authorization' hdr]
 ::
+::  extract the JSON payload from a Server-Sent Events response.
+::  an MCP server may return either:
+::    application/json           → body is the raw JSON, return as-is
+::    text/event-stream          → body is e.g. "event: message\ndata: {...}\n\n"
+::  for the SSE case we find the first "data: " marker (which may be
+::  preceded by "event: message" or other SSE fields), skip it, and
+::  take everything up to the next newline.
+::
 ++  strip-sse
   |=  body=@t
   ^-  @t
   =/  t=tape  (trip body)
-  ?.  =("data: " (scag 6 t))  body
-  =/  rest=tape  (slag 6 t)
-  ::  trim trailing whitespace/newlines by flipping and dropping
-  %-  crip  %-  flop
-  =/  r=tape  (flop rest)
-  |-  ^-  tape
-  ?~  r  ~
-  ?:  ?|(=(10 i.r) =(13 i.r) =(32 i.r))
-    $(r t.r)
-  r
+  =/  len=@ud  (lent t)
+  ::  find "data: " (with space)
+  =/  idx=(unit @ud)  (find "data: " t)
+  =/  data-start=(unit @ud)
+    ?^  idx  `(add u.idx 6)
+    ::  try "data:" without space
+    =/  idx2=(unit @ud)  (find "data:" t)
+    ?~  idx2  ~
+    `(add u.idx2 5)
+  ?~  data-start  body
+  =/  after=tape  (slag u.data-start t)
+  ::  truncate at the first newline (end of the data field)
+  =/  nl=(unit @ud)  (find ~[10] after)
+  =/  extracted=tape
+    ?~  nl  after
+    (scag u.nl after)
+  ::  trim leading whitespace (SSE spec allows a space after "data:")
+  |-  ^-  @t
+  ?~  extracted  (crip extracted)
+  ?:  ?|(=(10 i.extracted) =(13 i.extracted) =(32 i.extracted))
+    $(extracted t.extracted)
+  (crip extracted)
 ::
 ++  get-base-url
   |=  url=@t
