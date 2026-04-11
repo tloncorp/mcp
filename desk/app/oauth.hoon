@@ -776,6 +776,12 @@
       ::  /x/auth-header/<provider-id>: get full Authorization header
       ::  e.g. "Bearer xxx" - ready to use as header value
       ::
+      ::  always emits "Bearer " regardless of what token-type the
+      ::  provider returned (e.g. Linear returns lowercase "bearer"
+      ::  in their token response but then strictly case-matches on
+      ::  "Bearer" in the resource server, rejecting lowercase as
+      ::  "invalid_token - missing or invalid access token")
+      ::
       [%x %auth-header @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
     =/  gra=(unit grant:oauth)  (~(get by grants) pid)
@@ -784,7 +790,7 @@
             (lth u.expires-at.u.gra now.bowl)
         ==
       ``noun+!>(`@t`'')
-    ``noun+!>((rap 3 ~[token-type.u.gra ' ' access-token.u.gra]))
+    ``noun+!>((rap 3 ~['Bearer ' access-token.u.gra]))
   ==
 ::
 ++  on-fail  on-fail:def
