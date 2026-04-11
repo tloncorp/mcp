@@ -53,15 +53,15 @@
     ==
   =.  servers  (~(put by servers) sid self-srv)
   =.  server-order  [sid server-order]
-  =/  prime-cards=(list card)
-    (prime-proxy-cards servers server-order cookies our.bowl now.bowl sid)
-  :_  this
-  %+  weld
+  =/  base=(list card)
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
         (sync-server-key-card our.bowl initial-key)
     ==
-  prime-cards
+  =/  prime-cards=(list card)
+    (prime-proxy-cards servers server-order cookies our.bowl now.bowl sid)
+  :_  this
+  (weld base prime-cards)
 ::
 ++  on-save  !>(state)
 ::
