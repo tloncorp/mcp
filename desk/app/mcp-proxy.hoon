@@ -608,7 +608,15 @@
     |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
     =/  out-headers=(list [key=@t value=@t])
       %+  weld
-        ~[['content-type' 'application/json'] ['accept' 'application/json']]
+        ::  MCP Streamable HTTP spec: clients must accept both
+        ::  application/json and text/event-stream; some servers
+        ::  (linear) 406 if we don't. also include MCP protocol
+        ::  version so the server knows what we speak.
+        :~  ['content-type' 'application/json']
+            ['accept' 'application/json, text/event-stream']
+            ['mcp-protocol-version' '2025-03-26']
+            ['user-agent' 'urbit-mcp']
+        ==
       headers.srv
     =/  cookie=(unit @t)  (~(get by cookies) sid)
     =?  out-headers  ?=(^ cookie)
@@ -727,13 +735,25 @@
       %-  en:json:html
       ?>  ?=(%o -.jon)
       [%o (~(put by p.jon) 'params' new-params)]
-    =.  out-headers  [['content-type' 'application/json'] out-headers]
+    ::  rebuild headers with MCP Streamable HTTP requirements (the
+    ::  shared block up top uses Accept: application/json which is
+    ::  right for openapi, but MCP spec demands both json + sse)
+    =/  mcp-headers=(list [key=@t value=@t])
+      %+  weld
+        :~  ['content-type' 'application/json']
+            ['accept' 'application/json, text/event-stream']
+            ['mcp-protocol-version' '2025-03-26']
+            ['user-agent' 'urbit-mcp']
+        ==
+      headers.u.srv
+    =?  mcp-headers  ?=(^ oauth-hdr)
+      (snoc mcp-headers u.oauth-hdr)
     =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
     =.  pending  (~(put by pending) wire-id eyre-id)
     :_  this
     :~  :*  %pass  /iris/proxy/[wire-id]
             %arvo  %i  %request
-            [%'POST' url.u.srv out-headers `(as-octs:mimes:html new-body)]
+            [%'POST' url.u.srv mcp-headers `(as-octs:mimes:html new-body)]
             *outbound-config:iris
         ==
     ==
@@ -1047,12 +1067,26 @@
       `this
     ::  parse the upstream response (handles both plain JSON and SSE format)
     =/  result-json=(unit json)
-      ?.  ?=([%iris %http-response *] sign)  ~
+      ?.  ?=([%iris %http-response *] sign)
+        ~&  [%mcp-proxy %agg-bad-sign sid]
+        ~
       =/  resp=client-response:iris  client-response.sign
-      ?.  ?=(%finished -.resp)  ~
-      ?.  =(200 status-code.response-header.resp)  ~
-      ?~  full-file.resp  ~
+      ?.  ?=(%finished -.resp)
+        ~&  [%mcp-proxy %agg-not-finished sid]
+        ~
+      ?.  =(200 status-code.response-header.resp)
+        =/  body-preview=@t
+          ?~  full-file.resp  'no body'
+          =/  b=@t  `@t`q.data.u.full-file.resp
+          ?:  (gth (met 3 b) 500)  b
+          b
+        ~&  [%mcp-proxy %agg-non-200 sid status-code.response-header.resp body-preview]
+        ~
+      ?~  full-file.resp
+        ~&  [%mcp-proxy %agg-empty-body sid]
+        ~
       =/  body=@t  `@t`q.data.u.full-file.resp
+      ~&  [%mcp-proxy %agg-body sid (met 3 body)]
       ::  strip SSE "data: " prefix if present
       =/  clean=@t  (strip-sse body)
       (de:json:html clean)
