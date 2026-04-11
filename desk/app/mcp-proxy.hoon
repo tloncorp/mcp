@@ -933,12 +933,20 @@
       `@t`q.data.u.full-file.resp
     ::  strip SSE prefix if present
     =/  clean=@t  (strip-sse body)
+    ~&  [%mcp-proxy %toolsapi-body wire-id (met 3 clean)]
     =/  jon=(unit json)  (de:json:html clean)
     =/  tools=(list json)
       ?~  jon  ~
       ::  MCP response: {"result":{"tools":[...]}}
+      ::  MCP error:    {"error":{"code":..., "message":...}}
       =/  result=json  (get-json-field u.jon 'result')
+      ?~  result
+        =/  err=json  (get-json-field u.jon 'error')
+        ?~  err  ~
+        ~&  [%mcp-proxy %toolsapi-error wire-id err]
+        ~
       =/  tl=json  (get-json-field result 'tools')
+      ?~  tl  ~
       ?.  ?=(%a -.tl)  ~
       p.tl
     =/  resp-body=@t  (en:json:html (pairs:enjs:format ~[['tools' a+tools]]))
