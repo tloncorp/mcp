@@ -72,12 +72,28 @@
       internal-token=(unit @t)   ::  mcp-server's auto-gen token (cached)
   ==
 ::
+::  state-5: code-mode collapses N upstream tools into 3 meta-tools
+::  (mcp_search, mcp_describe, mcp_call) so the LLM doesn't pay
+::  context cost for the full catalog. inspired by cloudflare's
+::  "code mode" approach: https://blog.cloudflare.com/code-mode-mcp/
+::
++$  state-5
+  $:  %5
+      servers=(map server-id mcp-server)
+      server-order=(list server-id)
+      tool-filters=(map server-id tool-filter)
+      client-key=(unit @t)
+      internal-token=(unit @t)
+      code-mode=?                ::  collapse tools into 3 meta-tools
+  ==
+::
 +$  versioned-state
   $%  state-0
       state-1
       state-2
       state-3
       state-4
+      state-5
   ==
 ::
 +$  action
@@ -93,6 +109,7 @@
       [%regenerate-client-key ~]
       [%clear-client-key ~]
       [%set-internal-token token=@t]
+      [%set-code-mode on=?]
   ==
 ::
 +$  update

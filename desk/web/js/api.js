@@ -63,7 +63,8 @@ window.McpProxyAPI = {
   getClientKey: function() { return this.get('/client-key'); },
   setClientKey: function(key) { return this.post({ action: 'set-client-key', key: key }); },
   regenerateClientKey: function() { return this.post({ action: 'regenerate-client-key' }); },
-  clearClientKey: function() { return this.post({ action: 'clear-client-key' }); }
+  clearClientKey: function() { return this.post({ action: 'clear-client-key' }); },
+  setCodeMode: function(on) { return this.post({ action: 'set-code-mode', on: !!on }); }
 };
 
 window.OAuthAPI = {

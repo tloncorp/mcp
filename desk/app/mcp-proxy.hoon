@@ -21,13 +21,17 @@
 --
 ::
 %-  agent:dbug
-=|  state-4:mcp-proxy
+=|  state-5:mcp-proxy
 =*  state  -
 =/  pending  *(map @t @ta)
 =/  wrap-set  *(map @t json)                      ::  wire-id -> client's JSON-RPC id (for MCP wrapping)
 =/  cookies  *(map server-id:mcp-proxy @t)
 =/  agg-pending  *(map @t agg-request)
 =/  spec-cache  *(map server-id:mcp-proxy json)
+::  cached tool list per proxy upstream — populated as a side
+::  effect of fan-out, used by code-mode meta tools to search
+::  without round-tripping back to upstreams.
+=/  proxy-tools-cache  *(map server-id:mcp-proxy (list json))
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -67,23 +71,24 @@
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
     ==
-  =/  raw-state=state-4:mcp-proxy
+  =/  raw-state=state-5:mcp-proxy
     ?-  -.p.old
-        %4  p.old
-        %3  [%4 servers.p.old server-order.p.old tool-filters.p.old ~ ~]
-        %2  [%4 servers.p.old server-order.p.old ~ ~ ~]
+        %5  p.old
+        %4  [%5 servers.p.old server-order.p.old tool-filters.p.old client-key.p.old internal-token.p.old %.n]
+        %3  [%5 servers.p.old server-order.p.old tool-filters.p.old ~ ~ %.n]
+        %2  [%5 servers.p.old server-order.p.old ~ ~ ~ %.n]
     ::
         %1
       =/  new-servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
         %-  ~(run by servers.p.old)
         |=(s=mcp-server-1:mcp-proxy [name.s url.s headers.s enabled.s oauth-provider.s %proxy ~])
-      [%4 new-servers server-order.p.old ~ ~ ~]
+      [%5 new-servers server-order.p.old ~ ~ ~ %.n]
     ::
         %0
       =/  new-servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
         %-  ~(run by servers.p.old)
         |=(s=mcp-server-0:mcp-proxy [name.s url.s headers.s enabled.s ~ %proxy ~])
-      [%4 new-servers server-order.p.old ~ ~ ~]
+      [%5 new-servers server-order.p.old ~ ~ ~ %.n]
     ==
   ::  ensure a client-key exists; generate if missing
   =/  ensured-key=@t
@@ -118,7 +123,7 @@
     ?:  (~(has in (sy order-no-legacy)) sid)
       order-no-legacy
     [sid order-no-legacy]
-  =/  new-state=state-4:mcp-proxy
+  =/  new-state=state-5:mcp-proxy
     raw-state(client-key `ensured-key, servers patched-servers, server-order patched-order)
   ::  re-fetch specs for openapi servers (cache is non-persisted)
   =/  spec-cards=(list card)
@@ -245,11 +250,15 @@
         %set-internal-token
       ::  legacy: a no-op now that mcp-proxy owns the key
       `this
+    ::
+        %set-code-mode
+      =.  code-mode  on.act
+      `this
     ==
   ::
   ++  apply-key
     |=  new-key=@t
-    ^-  (quip card state-4:mcp-proxy)
+    ^-  (quip card state-5:mcp-proxy)
     =.  client-key  `new-key
     ::  ensure self upstream exists with the new key as its x-api-key header
     =/  sid=@tas  (self-id our.bowl)
@@ -347,6 +356,7 @@
           ?~  client-key  ~
           s+u.client-key
           ['hasKey' b+?=(^ client-key)]
+          ['codeMode' b+code-mode]
       ==
     ::
         [%tools @ ~]
@@ -388,14 +398,12 @@
         (snoc out-headers ['cookie' u.cookie])
       =/  oauth-hdr=(unit [key=@t value=@t])
         (get-oauth-header oauth-provider.u.srv our.bowl now.bowl)
-      ~&  [%mcp-proxy %tools-oauth-hdr-present sid oauth-provider.u.srv ?=(^ oauth-hdr)]
       =?  out-headers  ?=(^ oauth-hdr)
         (snoc out-headers u.oauth-hdr)
-      ~&  [%mcp-proxy %tools-outbound-headers sid out-headers]
       =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
       =.  pending  (~(put by pending) wire-id eyre-id)
       :_  this
-      :~  [%pass /iris/toolsapi/[wire-id] %arvo %i %request [%'POST' url.u.srv out-headers `(as-octs:mimes:html upstream-body)] *outbound-config:iris]
+      :~  [%pass /iris/toolsapi/[sid]/[wire-id] %arvo %i %request [%'POST' url.u.srv out-headers `(as-octs:mimes:html upstream-body)] *outbound-config:iris]
       ==
     ==
   ::
@@ -514,10 +522,32 @@
       (give-http eyre-id 200 ~[cors] ~)
     ::
         ?(%'tools/list' %'resources/list' %'prompts/list')
+      ::  code-mode: collapse the catalog into 3 meta-tools
+      ?:  &(=(%'tools/list' method) code-mode)
+        =/  resp=json
+          %-  pairs:enjs:format
+          :~  ['jsonrpc' s+'2.0']  ['id' req-id]
+              :-  'result'
+              (pairs:enjs:format ~[['tools' a+meta-tools]])
+          ==
+        :_  this
+        (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
       (fan-out eyre-id req-id method)
     ::
         ?(%'tools/call' %'resources/read' %'prompts/get')
       ~&  [%mcp-proxy %routing-call method (get-json-string (get-json-field u.jon 'params') 'name')]
+      ::  code-mode: intercept the meta-tool calls before normal routing
+      ?:  &(=(%'tools/call' method) code-mode)
+        =/  params=json  (get-json-field u.jon 'params')
+        =/  tool-name-called=@t  (get-json-string params 'name')
+        ?:  =('mcp_search' tool-name-called)
+          (handle-meta-search eyre-id req-id params)
+        ?:  =('mcp_describe' tool-name-called)
+          (handle-meta-describe eyre-id req-id params)
+        ?:  =('mcp_call' tool-name-called)
+          (handle-meta-call eyre-id req u.jon params)
+        ::  unknown meta-name; fall through to normal routing
+        (route-call eyre-id req u.jon method)
       (route-call eyre-id req u.jon method)
     ==
   ::
@@ -876,6 +906,220 @@
             (pairs ~[['key' s+key.h] ['value' s+value.h]])
         ==
     ==
+  ::
+  ::  gather every available tool across every enabled upstream,
+  ::  honoring per-server tool filters. each entry is a fully
+  ::  prefixed tool json (i.e. name has the server-id prefix).
+  ::
+  ::  openapi/discovery upstreams synthesize from cached specs.
+  ::  proxy upstreams come from proxy-tools-cache, populated as a
+  ::  side effect of fan-out. if a proxy server hasn't been fanned
+  ::  yet, its tools are simply absent from the catalog.
+  ::
+  ++  gather-all-tools
+    ^-  (list [server-id:mcp-proxy (list json)])
+    %+  murn
+      %+  turn  server-order
+      |=(sid=server-id:mcp-proxy [sid (~(got by servers) sid)])
+    |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
+    ^-  (unit [server-id:mcp-proxy (list json)])
+    ?.  enabled.srv  ~
+    ?:  =(%openapi mode.srv)
+      =/  spec=(unit json)  (~(get by spec-cache) sid)
+      ?~  spec  ~
+      =/  raw=(list json)  (spec-to-tools sid u.spec)
+      =/  filtered=(list json)  (apply-tool-filter sid raw tool-filters)
+      =/  prefixed=(list json)  (prefix-tool-names sid filtered)
+      `[sid prefixed]
+    ::  proxy mode: pull from cache if present
+    =/  cached=(unit (list json))  (~(get by proxy-tools-cache) sid)
+    ?~  cached  ~
+    =/  filtered=(list json)  (apply-tool-filter sid u.cached tool-filters)
+    =/  prefixed=(list json)  (prefix-tool-names sid filtered)
+    `[sid prefixed]
+  ::
+  ::  prefix tool names with their server-id (e.g. "create_issue"
+  ::  becomes "linear_create_issue") so they round-trip through
+  ::  split-on-underscore in route-call.
+  ::
+  ++  prefix-tool-names
+    |=  [sid=server-id:mcp-proxy tools=(list json)]
+    ^-  (list json)
+    %+  turn  tools
+    |=  tool=json
+    ^-  json
+    ?.  ?=(%o -.tool)  tool
+    =/  name=@t  (tool-name tool)
+    ?:  =('' name)  tool
+    ::  if already prefixed (proxy mode tools come back prefixed
+    ::  from upstream), leave alone
+    =/  prefix=@t  (rap 3 ~[(scot %tas sid) '_'])
+    =/  prefixed-name=@t
+      ?:  =(prefix (end [3 (met 3 prefix)] name))  name
+      (rap 3 ~[prefix name])
+    [%o (~(put by p.tool) 'name' s+prefixed-name)]
+  ::
+  ::  filter the catalog by query/server/limit, returning a slimmed
+  ::  result set the LLM can use to pick something to call.
+  ::
+  ++  search-meta
+    |=  [query=@t server-filter=@t limit=@ud]
+    ^-  json
+    =/  parsed  (parse-search-query query)
+    =/  effective-server=@t
+      ?:  =('' server.parsed)  server-filter
+      server.parsed
+    =/  keywords=@t  keywords.parsed
+    =/  catalog=(list [server-id:mcp-proxy (list json)])  gather-all-tools
+    ::  flatten + filter
+    =/  matched=(list [@t @t @t])
+      ::  list of [tool-name server-id description]
+      %-  zing
+      %+  turn  catalog
+      |=  [sid=server-id:mcp-proxy tools=(list json)]
+      ?:  ?&  !=('' effective-server)
+              !=((scot %tas sid) effective-server)
+          ==
+        ~
+      %+  murn  tools
+      |=  tool=json
+      ^-  (unit [@t @t @t])
+      =/  nm=@t  (tool-name tool)
+      =/  desc=@t  (tool-description tool)
+      ?:  =('' nm)  ~
+      ?:  &(!=('' keywords) !(contains-ci nm keywords) !(contains-ci desc keywords))
+        ~
+      `[nm (scot %tas sid) desc]
+    =/  total=@ud  (lent matched)
+    =/  capped=(list [@t @t @t])  (scag (min limit total) matched)
+    =/  result-arr=(list json)
+      %+  turn  capped
+      |=  [nm=@t srv=@t desc=@t]
+      ::  truncate description to 200 chars to keep results compact
+      =/  short-desc=@t
+        ?:  (lte (met 3 desc) 200)  desc
+        (rap 3 ~[(crip (scag 200 (trip desc))) '...'])
+      %-  pairs:enjs:format
+      :~  ['name' s+nm]
+          ['server' s+srv]
+          ['description' s+short-desc]
+      ==
+    %-  pairs:enjs:format
+    :~  ['total' (numb:enjs:format total)]
+        ['returned' (numb:enjs:format (lent capped))]
+        ['tools' a+result-arr]
+    ==
+  ::
+  ::  return the full schema (description + inputSchema) for one tool
+  ::
+  ++  describe-meta
+    |=  full-name=@t
+    ^-  (unit json)
+    =/  catalog=(list [server-id:mcp-proxy (list json)])  gather-all-tools
+    |-
+    ?~  catalog  ~
+    =/  found=(unit json)
+      =/  tools=(list json)  +.i.catalog
+      |-
+      ?~  tools  ~
+      ?:  =(full-name (tool-name i.tools))  `i.tools
+      $(tools t.tools)
+    ?^  found  found
+    $(catalog t.catalog)
+  ::
+  ::  meta tool: mcp_search → run search-meta and wrap as MCP result
+  ::
+  ++  handle-meta-search
+    |=  [eyre-id=@ta req-id=json params=json]
+    ^-  (quip card _this)
+    =/  args=json
+      ?.  ?=(%o -.params)  ~
+      (fall (~(get by p.params) 'arguments') ~)
+    =/  query=@t  (get-json-string args 'query')
+    =/  server-arg=@t  (get-json-string args 'server')
+    =/  limit=@ud
+      =/  l=@t  (get-json-string args 'limit')
+      ?:  =('' l)  25
+      =/  res  (mule |.((slav %ud l)))
+      ?:(?=(%& -.res) (min p.res 200) 25)
+    =/  search-result=json  (search-meta query server-arg limit)
+    =/  text=@t  (en:json:html search-result)
+    =/  resp=json
+      %-  pairs:enjs:format
+      :~  ['jsonrpc' s+'2.0']  ['id' req-id]
+          :-  'result'
+          %-  pairs:enjs:format
+          :~  :-  'content'
+              :-  %a
+              :~  (pairs:enjs:format ~[['type' s+'text'] ['text' s+text]])
+              ==
+              ['isError' b+%.n]
+          ==
+      ==
+    :_  this
+    (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
+  ::
+  ::  meta tool: mcp_describe → return one tool's full schema
+  ::
+  ++  handle-meta-describe
+    |=  [eyre-id=@ta req-id=json params=json]
+    ^-  (quip card _this)
+    =/  args=json
+      ?.  ?=(%o -.params)  ~
+      (fall (~(get by p.params) 'arguments') ~)
+    =/  full-name=@t  (get-json-string args 'name')
+    =/  found=(unit json)  (describe-meta full-name)
+    =/  text=@t
+      ?~  found  (rap 3 ~['{"error":"tool not found: ' full-name '"}'])
+      (en:json:html u.found)
+    =/  is-error=?  ?=(~ found)
+    =/  resp=json
+      %-  pairs:enjs:format
+      :~  ['jsonrpc' s+'2.0']  ['id' req-id]
+          :-  'result'
+          %-  pairs:enjs:format
+          :~  :-  'content'
+              :-  %a
+              :~  (pairs:enjs:format ~[['type' s+'text'] ['text' s+text]])
+              ==
+              ['isError' b+is-error]
+          ==
+      ==
+    :_  this
+    (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
+  ::
+  ::  meta tool: mcp_call → look up the underlying tool and route it
+  ::  through the existing route-call by rewriting the params with
+  ::  the inner name + arguments. this preserves all the existing
+  ::  per-server auth, openapi, proxy, oauth header, response wrap
+  ::  machinery without duplicating any of it.
+  ::
+  ++  handle-meta-call
+    |=  [eyre-id=@ta req=inbound-request:eyre jon=json params=json]
+    ^-  (quip card _this)
+    =/  args=json
+      ?.  ?=(%o -.params)  ~
+      (fall (~(get by p.params) 'arguments') ~)
+    =/  inner-name=@t  (get-json-string args 'name')
+    =/  inner-args=json
+      ?.  ?=(%o -.args)  [%o ~]
+      (fall (~(get by p.args) 'arguments') [%o ~])
+    ?:  =('' inner-name)
+      :_  this
+      %-  give-http  :^  eyre-id  400
+      ~[cors ['content-type' 'application/json']]
+      (some (as-octs:mimes:html '{"error":"mcp_call: missing name"}'))
+    ::  rewrite the params object so it looks like a direct
+    ::  tools/call invocation: {name: <inner>, arguments: <inner>}
+    =/  rewritten-params=json
+      %-  pairs:enjs:format
+      :~  ['name' s+inner-name]
+          ['arguments' inner-args]
+      ==
+    =/  rewritten-jon=json
+      ?>  ?=(%o -.jon)
+      [%o (~(put by p.jon) 'params' rewritten-params)]
+    (route-call eyre-id req rewritten-jon %'tools/call')
   --
 ::
 ++  on-watch
@@ -921,9 +1165,10 @@
     ~&  [%mcp-proxy %spec-cached sid]
     `this(spec-cache (~(put by spec-cache) sid u.jon))
   ::
-      [%iris %toolsapi @ ~]
+      [%iris %toolsapi @ @ ~]
     ::  tools API response: parse MCP response and extract tools list
-    =/  wire-id=@t  i.t.t.wire
+    =/  sid=server-id:mcp-proxy  i.t.t.wire
+    =/  wire-id=@t  i.t.t.t.wire
     =/  eid=(unit @ta)  (~(get by pending) wire-id)
     ?~  eid  `this
     =.  pending  (~(del by pending) wire-id)
@@ -955,6 +1200,9 @@
       ?~  tl  ~
       ?.  ?=(%a -.tl)  ~
       p.tl
+    ::  cache for code-mode meta tools
+    =?  proxy-tools-cache  ?=(^ tools)
+      (~(put by proxy-tools-cache) sid tools)
     =/  resp-body=@t  (en:json:html (pairs:enjs:format ~[['tools' a+tools]]))
     :_  this
     (give-http u.eid 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html resp-body)))
@@ -1104,6 +1352,16 @@
       ::  strip SSE "data: " prefix if present
       =/  clean=@t  (strip-sse body)
       (de:json:html clean)
+    ::  cache the parsed proxy tools per server so code-mode can
+    ::  search them without round-tripping back. only relevant for
+    ::  the tools/list method; ignore other list types.
+    =?  proxy-tools-cache  &(=(%'tools/list' method.u.req) ?=(^ result-json))
+      =/  result=json  (get-json-field u.result-json 'result')
+      ?~  result  proxy-tools-cache
+      =/  tl=json  (get-json-field result 'tools')
+      ?~  tl  proxy-tools-cache
+      ?.  ?=(%a -.tl)  proxy-tools-cache
+      (~(put by proxy-tools-cache) sid p.tl)
     ::  store result (~ if failed, which is ok)
     =/  new-results=(map server-id:mcp-proxy (unit json))
       (~(put by results.u.req) sid result-json)
@@ -1219,6 +1477,164 @@
   `@tas`(crip (slag 1 (trip (scot %p our))))
 ::
 ++  http-methods  (silt ~['get' 'post' 'put' 'patch' 'delete'])
+::
+::  the three meta-tools exposed when code-mode is enabled. these
+::  collapse the entire upstream tool catalog (which can be hundreds
+::  of operations across many servers) into a discovery interface
+::  the LLM can use without paying token cost for the full list.
+::
+::  inspired by cloudflare's "code mode" approach but adapted to a
+::  no-sandbox environment: the LLM uses keyword search rather than
+::  writing JS against the spec.
+::
+++  meta-tools
+  ^-  (list json)
+  =/  search-tool=json
+    %-  pairs:enjs:format
+    :~  ['name' s+'mcp_search']
+        :-  'description'
+        s+'Search across all configured upstream servers for available tools. Returns matching tool names with brief descriptions. Use this to discover what tools exist before calling mcp_describe for the full schema of a specific tool, then mcp_call to invoke. Query syntax: plain keywords match against tool name and description; "server:<id>" filters to one upstream (e.g. "server:linear", "server:google issue"). Combine: "server:linear create" finds linear creation tools.'
+        :-  'inputSchema'
+        %-  pairs:enjs:format
+        :~  ['type' s+'object']
+            :-  'properties'
+            %-  pairs:enjs:format
+            :~  :-  'query'
+                %-  pairs:enjs:format
+                :~  ['type' s+'string']
+                    ['description' s+'Search query (supports server:id filter inline). Empty string lists everything.']
+                ==
+                :-  'server'
+                %-  pairs:enjs:format
+                :~  ['type' s+'string']
+                    ['description' s+'Optional filter to a single upstream id.']
+                ==
+                :-  'limit'
+                %-  pairs:enjs:format
+                :~  ['type' s+'integer']
+                    ['description' s+'Max results (default 25, max 200).']
+                ==
+            ==
+            ['required' a+~]
+        ==
+    ==
+  =/  describe-tool=json
+    %-  pairs:enjs:format
+    :~  ['name' s+'mcp_describe']
+        :-  'description'
+        s+'Return the full schema (description + inputSchema) for a specific tool by its full prefixed name (e.g. "linear_create_issue"). Use after mcp_search to get the details needed to construct an mcp_call.'
+        :-  'inputSchema'
+        %-  pairs:enjs:format
+        :~  ['type' s+'object']
+            :-  'properties'
+            %-  pairs:enjs:format
+            :~  :-  'name'
+                %-  pairs:enjs:format
+                :~  ['type' s+'string']
+                    ['description' s+'Full tool name including server prefix, e.g. "linear_create_issue".']
+                ==
+            ==
+            ['required' a+~[s+'name']]
+        ==
+    ==
+  =/  call-tool=json
+    %-  pairs:enjs:format
+    :~  ['name' s+'mcp_call']
+        :-  'description'
+        s+'Invoke any tool from any configured upstream by its full prefixed name. Equivalent to calling the tool directly but the LLM does not need it to appear in the flat tools list — useful when code-mode collapses the catalog. Pass arguments matching the inputSchema of the tool (use mcp_describe to discover this).'
+        :-  'inputSchema'
+        %-  pairs:enjs:format
+        :~  ['type' s+'object']
+            :-  'properties'
+            %-  pairs:enjs:format
+            :~  :-  'name'
+                %-  pairs:enjs:format
+                :~  ['type' s+'string']
+                    ['description' s+'Full tool name including server prefix.']
+                ==
+                :-  'arguments'
+                %-  pairs:enjs:format
+                :~  ['type' s+'object']
+                    ['description' s+'Arguments matching the tool inputSchema. Pass an empty object {} if the tool takes no arguments.']
+                ==
+            ==
+            ['required' a+~[s+'name' s+'arguments']]
+        ==
+    ==
+  ~[search-tool describe-tool call-tool]
+::
+::  pull the 'name' field out of an MCP tool JSON object
+::
+++  tool-name
+  |=  tool=json
+  ^-  @t
+  ?.  ?=(%o -.tool)  ''
+  =/  v=(unit json)  (~(get by p.tool) 'name')
+  ?~  v  ''
+  ?.  ?=(%s -.u.v)  ''
+  p.u.v
+::
+::  pull the 'description' field out of an MCP tool JSON object
+::
+++  tool-description
+  |=  tool=json
+  ^-  @t
+  ?.  ?=(%o -.tool)  ''
+  =/  v=(unit json)  (~(get by p.tool) 'description')
+  ?~  v  ''
+  ?.  ?=(%s -.u.v)  ''
+  p.u.v
+::
+::  case-insensitive substring match
+::
+++  contains-ci
+  |=  [haystack=@t needle=@t]
+  ^-  ?
+  ?:  =('' needle)  %.y
+  =/  h=tape  (cass (trip haystack))
+  =/  n=tape  (cass (trip needle))
+  !=(~ (find n h))
+::
+::  parse a search query string of the form "[server:foo] [keyword keyword]"
+::  returns the explicit server filter (or '') and the remaining keyword
+::
+++  parse-search-query
+  |=  raw=@t
+  ^-  [server=@t keywords=@t]
+  =/  t=tape  (trip raw)
+  =/  prefix=tape  "server:"
+  =/  idx=(unit @ud)  (find prefix t)
+  ?~  idx  ['' raw]
+  =/  after-prefix=tape  (slag (add u.idx (lent prefix)) t)
+  =/  end=(unit @ud)  (find " " after-prefix)
+  =/  server-tape=tape
+    ?~  end  after-prefix
+    (scag u.end after-prefix)
+  =/  rest-tape=tape
+    ?~  end  ""
+    (slag +(u.end) after-prefix)
+  =/  before=tape  (scag u.idx t)
+  =/  combined=tape  (weld before rest-tape)
+  =/  trimmed=tape  (trim-spaces combined)
+  [(crip server-tape) (crip trimmed)]
+::
+::  drop leading and trailing ASCII spaces
+::
+++  trim-spaces
+  |=  t=tape
+  ^-  tape
+  =/  front=tape
+    |-
+    ?~  t  ~
+    ?.  =(' ' i.t)  t
+    $(t t.t)
+  =/  back=tape  (flop front)
+  =/  trimmed=tape
+    |-
+    ?~  back  ~
+    ?.  =(' ' i.back)  back
+    $(back t.back)
+  (flop trimmed)
 ::
 ::  convert an OpenAPI spec to a list of MCP tool JSON objects
 ::
@@ -1735,6 +2151,10 @@
     [%regenerate-client-key ~]
       %'clear-client-key'
     [%clear-client-key ~]
+      %'set-code-mode'
+    =/  v=json  (get-json-field jon 'on')
+    ?.  ?=(%b -.v)  [%set-code-mode %.n]
+    [%set-code-mode p.v]
   ==
 ::
 ++  server-to-json

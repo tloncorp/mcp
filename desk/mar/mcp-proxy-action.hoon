@@ -90,6 +90,9 @@
     ::
         %'set-internal-token'
       [%set-internal-token ((ot ~[token+so]) jon)]
+    ::
+        %'set-code-mode'
+      [%set-code-mode ((ot ~[on+bo]) jon)]
     ==
   --
 ++  grad  %noun

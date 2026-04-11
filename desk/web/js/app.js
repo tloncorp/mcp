@@ -48,6 +48,7 @@ var App = {
       self.servers = results[0].servers || [];
       self.oauthProviders = results[1].providers || [];
       self.clientKey = results[2].clientKey || null;
+      self.codeMode = !!results[2].codeMode;
       self.relayProviders = results[3].providers || [];
       self.updateEndpoint();
       self.updateStats();
@@ -131,6 +132,9 @@ var App = {
           ' \\\n  --header "X-Api-Key: <your-key>"';
       }
     }
+    // sync the code-mode toggle state
+    var codeModeToggle = document.getElementById('code-mode-toggle');
+    if (codeModeToggle) codeModeToggle.checked = !!this.codeMode;
   },
 
   updateStats: function() {
@@ -353,6 +357,20 @@ var App = {
         self.toast('API key cleared');
       }).catch(function(e) { alert('Failed: ' + e.message); });
     });
+
+    var codeModeToggle = document.getElementById('code-mode-toggle');
+    if (codeModeToggle) {
+      codeModeToggle.addEventListener('change', function() {
+        var on = codeModeToggle.checked;
+        McpProxyAPI.setCodeMode(on).then(function() {
+          self.codeMode = on;
+          self.toast(on ? 'Code mode enabled' : 'Code mode disabled');
+        }).catch(function(e) {
+          codeModeToggle.checked = !on; // revert on failure
+          alert('Failed: ' + e.message);
+        });
+      });
+    }
   },
 
   getHeadersFromForm: function(prefix) {
