@@ -374,8 +374,12 @@
         ==
       =/  out-headers=(list [key=@t value=@t])
         %+  weld
+          ::  MCP Streamable HTTP requires advertising both json and
+          ::  SSE; Linear returns SSE by default and 401s us as
+          ::  "invalid_token" if we don't accept it
           :~  ['content-type' 'application/json']
-              ['accept' 'application/json']
+              ['accept' 'application/json, text/event-stream']
+              ['mcp-protocol-version' '2025-03-26']
               ['user-agent' 'urbit-mcp']
           ==
         headers.u.srv
