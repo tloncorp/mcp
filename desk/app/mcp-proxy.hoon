@@ -53,11 +53,15 @@
     ==
   =.  servers  (~(put by servers) sid self-srv)
   =.  server-order  [sid server-order]
+  =/  prime-cards=(list card)
+    (prime-proxy-cards servers server-order cookies our.bowl now.bowl sid)
   :_  this
-  :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
-      [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
-      (sync-server-key-card our.bowl initial-key)
-  ==
+  %+  weld
+    :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
+        [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
+        (sync-server-key-card our.bowl initial-key)
+    ==
+  prime-cards
 ::
 ++  on-save  !>(state)
 ::
@@ -137,6 +141,11 @@
         [%'GET' u.schema-url.srv ~[['accept' 'application/json']] ~]
         *outbound-config:iris
     ==
+  ::  re-prime tools/list for proxy upstreams (also non-persisted)
+  ::  so the catalog is warm before any client connects
+  =/  prime-cards=(list card)
+    %+  prime-proxy-cards  servers.new-state
+    [server-order.new-state cookies our.bowl now.bowl sid]
   ::  clear eyre cache for web UI files on every bump
   =/  cache-cards=(list card)
     %+  turn
@@ -151,7 +160,7 @@
   ::  re-sync key with mcp-server every load (idempotent)
   =/  sync-cards=(list card)  ~[(sync-server-key-card our.bowl ensured-key)]
   :_  this(state new-state)
-  :(weld eyre-cards spec-cards cache-cards sync-cards)
+  :(weld eyre-cards spec-cards prime-cards cache-cards sync-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -197,6 +206,12 @@
       =.  server-order  (snoc server-order id.act)
       ?:  ?&(=(%openapi mode.mcp-server.act) ?=(^ schema-url.mcp-server.act))
         (fetch-spec id.act u.schema-url.mcp-server.act)
+      ?:  =(%proxy mode.mcp-server.act)
+        =/  c=(unit card)
+          %-  prime-one-proxy-card
+          [id.act mcp-server.act (~(get by cookies) id.act) our.bowl now.bowl]
+        ?~  c  `this
+        :_  this  ~[u.c]
       `this
         %remove-server
       =.  servers  (~(del by servers) id.act)
@@ -214,9 +229,15 @@
         %refresh-spec
       =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) id.act)
       ?~  srv  `this
-      ?.  =(%openapi mode.u.srv)  `this
-      ?~  schema-url.u.srv  `this
-      (fetch-spec id.act u.schema-url.u.srv)
+      ?:  =(%openapi mode.u.srv)
+        ?~  schema-url.u.srv  `this
+        (fetch-spec id.act u.schema-url.u.srv)
+      ::  proxy mode: re-prime tools/list cache for this upstream
+      =/  c=(unit card)
+        %-  prime-one-proxy-card
+        [id.act u.srv (~(get by cookies) id.act) our.bowl now.bowl]
+      ?~  c  `this
+      :_  this  ~[u.c]
     ::
         %set-tool-filter
       =.  tool-filters  (~(put by tool-filters) id.act tool-filter.act)
@@ -522,13 +543,24 @@
       (give-http eyre-id 200 ~[cors] ~)
     ::
         ?(%'tools/list' %'resources/list' %'prompts/list')
-      ::  code-mode: collapse the catalog into 3 meta-tools
-      ?:  &(=(%'tools/list' method) code-mode)
+      ::  code-mode: return meta-tools for tools/list and empty
+      ::  arrays for the other two. without this short-circuit the
+      ::  initial handshake fans prompts/list and resources/list out
+      ::  to every upstream and blocks until they all respond, which
+      ::  is what makes /apps/mcp/mcp appear stuck on connect.
+      ?:  code-mode
+        =/  result-key=@t
+          ?:  =(%'tools/list' method)      'tools'
+          ?:  =(%'resources/list' method)  'resources'
+          'prompts'
+        =/  items=(list json)
+          ?:  =(%'tools/list' method)  meta-tools
+          ~
         =/  resp=json
           %-  pairs:enjs:format
           :~  ['jsonrpc' s+'2.0']  ['id' req-id]
               :-  'result'
-              (pairs:enjs:format ~[['tools' a+meta-tools]])
+              (pairs:enjs:format ~[[result-key a+items]])
           ==
         :_  this
         (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
@@ -540,6 +572,8 @@
       ?:  &(=(%'tools/call' method) code-mode)
         =/  params=json  (get-json-field u.jon 'params')
         =/  tool-name-called=@t  (get-json-string params 'name')
+        ?:  =('mcp_list_upstreams' tool-name-called)
+          (handle-meta-list-upstreams eyre-id req-id)
         ?:  =('mcp_search' tool-name-called)
           (handle-meta-search eyre-id req-id params)
         ?:  =('mcp_describe' tool-name-called)
@@ -1027,6 +1061,39 @@
     ?^  found  found
     $(catalog t.catalog)
   ::
+  ::  meta tool: mcp_list_upstreams → return id/name/url for every
+  ::  configured upstream so the agent can pick which one to search.
+  ::
+  ++  handle-meta-list-upstreams
+    |=  [eyre-id=@ta req-id=json]
+    ^-  (quip card _this)
+    =/  list-arr=(list json)
+      %+  turn  server-order
+      |=  sid=server-id:mcp-proxy
+      =/  srv=mcp-server:mcp-proxy  (~(got by servers) sid)
+      %-  pairs:enjs:format
+      :~  ['id' s+(scot %tas sid)]
+          ['name' s+name.srv]
+          ['url' s+url.srv]
+          ['enabled' b+enabled.srv]
+      ==
+    =/  text=@t
+      (en:json:html (pairs:enjs:format ~[['upstreams' a+list-arr]]))
+    =/  resp=json
+      %-  pairs:enjs:format
+      :~  ['jsonrpc' s+'2.0']  ['id' req-id]
+          :-  'result'
+          %-  pairs:enjs:format
+          :~  :-  'content'
+              :-  %a
+              :~  (pairs:enjs:format ~[['type' s+'text'] ['text' s+text]])
+              ==
+              ['isError' b+%.n]
+          ==
+      ==
+    :_  this
+    (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
+  ::
   ::  meta tool: mcp_search → run search-meta and wrap as MCP result
   ::
   ++  handle-meta-search
@@ -1139,6 +1206,43 @@
       ~?  !accepted.sign  [%mcp-proxy %binding-rejected binding.sign]
       `this
     `this
+  ::
+      [%iris %prime @ ~]
+    ::  proxy upstream tools/list prime response — mirrors the
+    ::  spec-fetch path but stores into proxy-tools-cache instead
+    ::  of spec-cache. fire-and-forget; no client is waiting on
+    ::  this so failures just leave the cache empty until the
+    ::  next fan-out repopulates it.
+    ::
+    =/  sid=server-id:mcp-proxy  i.t.t.wire
+    ?.  ?=([%iris %http-response *] sign)
+      ~&  [%mcp-proxy %prime-failed sid %bad-sign]
+      `this
+    =/  resp=client-response:iris  client-response.sign
+    ?.  ?=(%finished -.resp)
+      ~&  [%mcp-proxy %prime-failed sid %not-finished]
+      `this
+    ?.  =(200 status-code.response-header.resp)
+      ~&  [%mcp-proxy %prime-failed sid %status status-code.response-header.resp]
+      `this
+    ?~  full-file.resp
+      ~&  [%mcp-proxy %prime-failed sid %no-body]
+      `this
+    =/  body=@t  `@t`q.data.u.full-file.resp
+    =/  clean=@t  (strip-sse body)
+    =/  jon=(unit json)  (de:json:html clean)
+    ?~  jon
+      ~&  [%mcp-proxy %prime-failed sid %bad-json]
+      `this
+    =/  result=json  (get-json-field u.jon 'result')
+    ?~  result
+      ~&  [%mcp-proxy %prime-failed sid %no-result]
+      `this
+    =/  tl=json  (get-json-field result 'tools')
+    ?~  tl  `this
+    ?.  ?=(%a -.tl)  `this
+    ~&  [%mcp-proxy %primed sid (lent p.tl)]
+    `this(proxy-tools-cache (~(put by proxy-tools-cache) sid p.tl))
   ::
       [%iris %spec @ ~]
     ::  OpenAPI spec fetch response
@@ -1489,6 +1593,18 @@
 ::
 ++  meta-tools
   ^-  (list json)
+  =/  list-upstreams-tool=json
+    %-  pairs:enjs:format
+    :~  ['name' s+'mcp_list_upstreams']
+        :-  'description'
+        s+'List all configured upstream servers (id, display name, url, enabled state). Use this first to discover which upstreams exist, then call mcp_search with "server:<id>" (or pass the server arg) to enumerate the tools on that upstream, mcp_describe to get a tool schema, and mcp_call to invoke it.'
+        :-  'inputSchema'
+        %-  pairs:enjs:format
+        :~  ['type' s+'object']
+            ['properties' [%o ~]]
+            ['required' a+~]
+        ==
+    ==
   =/  search-tool=json
     %-  pairs:enjs:format
     :~  ['name' s+'mcp_search']
@@ -1561,7 +1677,7 @@
             ['required' a+~[s+'name' s+'arguments']]
         ==
     ==
-  ~[search-tool describe-tool call-tool]
+  ~[list-upstreams-tool search-tool describe-tool call-tool]
 ::
 ::  pull the 'name' field out of an MCP tool JSON object
 ::
@@ -2010,6 +2126,103 @@
     ?:(?=(%& -.res) p.res '')
   ?:  =('' hdr)  ~
   `['authorization' hdr]
+::
+::  build iris cards that POST tools/list to every enabled %proxy
+::  upstream so proxy-tools-cache can be primed without waiting for
+::  the next fan-out. mirrors the openapi spec-fetch in on-load —
+::  fire-and-forget; the response is handled by the [%iris %prime]
+::  arm in on-arvo. skips skip-id (the self upstream) so we don't
+::  recursively prime ourselves.
+::
+++  prime-proxy-cards
+  |=  $:  servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
+          server-order=(list server-id:mcp-proxy)
+          cookies=(map server-id:mcp-proxy @t)
+          our=@p
+          now=@da
+          skip-id=@tas
+      ==
+  ^-  (list card:agent:gall)
+  =/  body=@t
+    %-  en:json:html
+    %-  pairs:enjs:format
+    :~  ['jsonrpc' s+'2.0']
+        ['method' s+'tools/list']
+        ['id' (numb:enjs:format 1)]
+        ['params' (pairs:enjs:format ~)]
+    ==
+  %+  murn  server-order
+  |=  sid=server-id:mcp-proxy
+  ^-  (unit card:agent:gall)
+  =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
+  ?~  srv  ~
+  ?.  enabled.u.srv  ~
+  ?.  =(%proxy mode.u.srv)  ~
+  ?:  =(sid skip-id)  ~
+  =/  out-headers=(list [key=@t value=@t])
+    %+  weld
+      :~  ['content-type' 'application/json']
+          ['accept' 'application/json, text/event-stream']
+          ['mcp-protocol-version' '2025-03-26']
+          ['user-agent' 'urbit-mcp']
+      ==
+    headers.u.srv
+  =/  cookie=(unit @t)  (~(get by cookies) sid)
+  =?  out-headers  ?=(^ cookie)
+    (snoc out-headers ['cookie' u.cookie])
+  =/  oauth-hdr=(unit [key=@t value=@t])
+    (get-oauth-header oauth-provider.u.srv our now)
+  =?  out-headers  ?=(^ oauth-hdr)
+    (snoc out-headers u.oauth-hdr)
+  %-  some
+  :*  %pass  /iris/prime/[sid]
+      %arvo  %i  %request
+      [%'POST' url.u.srv out-headers `(as-octs:mimes:html body)]
+      *outbound-config:iris
+  ==
+::
+::  build a single iris card that POSTs tools/list to one upstream
+::  (used by add-server / refresh-spec to prime just the affected
+::  upstream rather than every one).
+::
+++  prime-one-proxy-card
+  |=  $:  sid=server-id:mcp-proxy
+          srv=mcp-server:mcp-proxy
+          cookie=(unit @t)
+          our=@p
+          now=@da
+      ==
+  ^-  (unit card:agent:gall)
+  ?.  enabled.srv  ~
+  ?.  =(%proxy mode.srv)  ~
+  =/  body=@t
+    %-  en:json:html
+    %-  pairs:enjs:format
+    :~  ['jsonrpc' s+'2.0']
+        ['method' s+'tools/list']
+        ['id' (numb:enjs:format 1)]
+        ['params' (pairs:enjs:format ~)]
+    ==
+  =/  out-headers=(list [key=@t value=@t])
+    %+  weld
+      :~  ['content-type' 'application/json']
+          ['accept' 'application/json, text/event-stream']
+          ['mcp-protocol-version' '2025-03-26']
+          ['user-agent' 'urbit-mcp']
+      ==
+    headers.srv
+  =?  out-headers  ?=(^ cookie)
+    (snoc out-headers ['cookie' u.cookie])
+  =/  oauth-hdr=(unit [key=@t value=@t])
+    (get-oauth-header oauth-provider.srv our now)
+  =?  out-headers  ?=(^ oauth-hdr)
+    (snoc out-headers u.oauth-hdr)
+  %-  some
+  :*  %pass  /iris/prime/[sid]
+      %arvo  %i  %request
+      [%'POST' url.srv out-headers `(as-octs:mimes:html body)]
+      *outbound-config:iris
+  ==
 ::
 ::  extract the JSON payload from a Server-Sent Events response.
 ::  an MCP server may return either:
