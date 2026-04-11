@@ -388,8 +388,10 @@
         (snoc out-headers ['cookie' u.cookie])
       =/  oauth-hdr=(unit [key=@t value=@t])
         (get-oauth-header oauth-provider.u.srv our.bowl now.bowl)
+      ~&  [%mcp-proxy %tools-oauth-hdr-present sid oauth-provider.u.srv ?=(^ oauth-hdr)]
       =?  out-headers  ?=(^ oauth-hdr)
         (snoc out-headers u.oauth-hdr)
+      ~&  [%mcp-proxy %tools-outbound-headers sid out-headers]
       =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
       =.  pending  (~(put by pending) wire-id eyre-id)
       :_  this
