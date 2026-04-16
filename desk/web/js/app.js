@@ -110,59 +110,90 @@ var App = {
     var container = document.getElementById('connected-list');
     if (!container) return;
 
-    // show connected providers and their linked upstreams
-    var connected = [];
-    for (var i = 0; i < this.oauthProviders.length; i++) {
-      var p = this.oauthProviders[i];
-      if (p.hasGrant) connected.push(p);
+    // build a set of server ids that are linked to an oauth provider
+    // so we can group them under that provider's card
+    var oauthLinked = {};
+    for (var i = 0; i < this.servers.length; i++) {
+      var sv = this.servers[i];
+      if (sv.oauthProvider) oauthLinked[sv.id] = sv.oauthProvider;
     }
 
-    if (connected.length === 0) {
-      container.innerHTML = '<div class="empty">No connectors active<em>connect a service above to get started</em></div>';
-      return;
+    // grant lookup
+    var grantMap = {};
+    for (var g = 0; g < this.oauthProviders.length; g++) {
+      var op = this.oauthProviders[g];
+      if (op.hasGrant) grantMap[op.id] = op;
     }
 
     var html = '';
-    for (var k = 0; k < connected.length; k++) {
-      var prov = connected[k];
-      // find servers linked to this provider
-      var linkedServers = [];
-      for (var s = 0; s < this.servers.length; s++) {
-        if (this.servers[s].oauthProvider === prov.id) {
-          linkedServers.push(this.servers[s]);
-        }
-      }
 
-      var serverInfo = '';
-      if (linkedServers.length > 0) {
-        for (var m = 0; m < linkedServers.length; m++) {
-          var srv = linkedServers[m];
-          serverInfo += '<span class="tag">' + this.esc(srv.name || srv.id) +
-            ' <span class="badge mode-' + (srv.mode === 'openapi' ? 'openapi' : 'proxy') + '">' +
-            srv.mode + '</span></span>';
-        }
-      }
+    // 1. servers without an oauth provider (standalone upstreams like the built-in MCP server)
+    for (var j = 0; j < this.servers.length; j++) {
+      var s = this.servers[j];
+      if (s.oauthProvider) continue; // shown under its provider below
+      var modeBadge = s.mode === 'openapi' ? 'openapi' : 'proxy';
+      html += '<div class="server-card' + (s.enabled ? '' : ' disabled') + '">' +
+        '<div class="card-row">' +
+          '<div class="card-identity">' +
+            '<div class="card-name">' + this.esc(s.name) + '</div>' +
+            '<div class="card-id">' + this.esc(s.id) + '</div>' +
+          '</div>' +
+          '<div class="card-badges">' +
+            '<span class="badge mode-' + modeBadge + '">' + modeBadge + '</span>' +
+            '<span class="badge ' + (s.enabled ? 'enabled' : 'disabled') + '">' + (s.enabled ? 'enabled' : 'disabled') + '</span>' +
+          '</div>' +
+        '</div>' +
+        (s.url ? '<div class="card-meta"><div class="meta-row"><div class="meta-key">URL</div><div class="meta-val accent">' + this.esc(s.url) + '</div></div></div>' : '') +
+      '</div>';
+    }
 
-      // find the relay provider for display name
-      var relay = this.relayProviders.find(function(r) { return r.id === prov.id; });
-      var displayName = (relay && relay.displayName) || prov.id;
+    // 2. oauth-linked servers grouped by provider
+    var shownProviders = {};
+    for (var k = 0; k < this.servers.length; k++) {
+      var srv = this.servers[k];
+      if (!srv.oauthProvider) continue;
+      if (shownProviders[srv.oauthProvider]) continue;
+      shownProviders[srv.oauthProvider] = true;
+
+      var prov = grantMap[srv.oauthProvider];
+      var isConnected = !!prov;
+      var relay = this.relayProviders.find(function(r) { return r.id === srv.oauthProvider; });
+      var displayName = (relay && relay.displayName) || srv.oauthProvider;
+
+      // collect all servers for this provider
+      var linked = this.servers.filter(function(x) { return x.oauthProvider === srv.oauthProvider; });
+      var serverTags = '';
+      for (var m = 0; m < linked.length; m++) {
+        var ls = linked[m];
+        serverTags += '<span class="tag">' + this.esc(ls.name || ls.id) +
+          ' <span class="badge mode-' + (ls.mode === 'openapi' ? 'openapi' : 'proxy') + '">' +
+          ls.mode + '</span></span>';
+      }
 
       html += '<div class="server-card">' +
         '<div class="card-row">' +
           '<div class="card-identity">' +
             '<div class="card-name">' + this.esc(displayName) + '</div>' +
-            '<div class="card-id">' + this.esc(prov.id) + '</div>' +
+            '<div class="card-id">' + this.esc(srv.oauthProvider) + '</div>' +
           '</div>' +
           '<div class="card-badges">' +
-            '<span class="badge connected">connected</span>' +
-            (prov.scopes ? '<span class="badge mode-proxy">' + this.esc(prov.scopes) + '</span>' : '') +
+            '<span class="badge ' + (isConnected ? 'connected' : 'disconnected') + '">' +
+              (isConnected ? 'connected' : 'disconnected') + '</span>' +
           '</div>' +
         '</div>' +
-        (serverInfo ? '<div class="card-meta"><div class="meta-row"><div class="meta-key">UPSTREAMS</div><div class="meta-val">' + serverInfo + '</div></div></div>' : '') +
+        '<div class="card-meta">' +
+          '<div class="meta-row"><div class="meta-key">UPSTREAMS</div><div class="meta-val">' + serverTags + '</div></div>' +
+        '</div>' +
         '<div class="card-actions">' +
-          '<button type="button" class="row-btn danger" onclick="App.disconnectProvider(\'' + this.esc(prov.id) + '\')">Disconnect</button>' +
+          (isConnected
+            ? '<button type="button" class="row-btn danger" onclick="App.disconnectProvider(\'' + this.esc(srv.oauthProvider) + '\')">Disconnect</button>'
+            : '<button type="button" class="row-btn accent" onclick="App.quickConnect(\'' + this.esc(srv.oauthProvider) + '\')">Connect</button>') +
         '</div>' +
       '</div>';
+    }
+
+    if (!html) {
+      html = '<div class="empty">No upstreams configured</div>';
     }
 
     container.innerHTML = html;
