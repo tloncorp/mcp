@@ -754,34 +754,13 @@
       [%x %providers ~]
     ``noun+!>(providers)
   ::
-      ::  /x/grants: sanitized grant list for platform clients
-      ::  (never exposes access/refresh tokens — just provider-id,
-      ::  connected flag, scopes, and expiry status). Scry as
-      ::  /gx/oauth/grants/json — gall strips the /json mark before
-      ::  invoking on-peek, so we match /x/grants here.
+      ::  /x/grants: sanitized grant list for platform clients.
+      ::  Returns %oauth-grants — gall converts to %json via
+      ::  /mar/oauth-grants/hoon when the scry is /gx/oauth/grants/json.
+      ::  Never exposes access/refresh tokens.
       ::
       [%x %grants ~]
-    =/  jon=json
-      :-  %a
-      %+  turn  ~(tap by grants)
-      |=  [pid=provider-id:oauth gra=grant:oauth]
-      ^-  json
-      =/  expires=@t
-        ?~  expires-at.gra  ''
-        (scot %da u.expires-at.gra)
-      =/  expired=?
-        ?~  expires-at.gra  %.n
-        (lth u.expires-at.gra now.bowl)
-      :-  %o
-      %-  malt
-      ^-  (list [@t json])
-      :~  ['provider' s+(scot %tas pid)]
-          ['connected' b+%.y]
-          ['expiresAt' s+expires]
-          ['expired' b+expired]
-          ['scopes' s+scopes.gra]
-      ==
-    ``json+!>(jon)
+    ``oauth-grants+!>([now.bowl grants])
   ::
       [%x %has-grant @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
