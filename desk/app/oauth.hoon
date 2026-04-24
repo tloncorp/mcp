@@ -754,6 +754,33 @@
       [%x %providers ~]
     ``noun+!>(providers)
   ::
+      ::  /x/grants/json: sanitized grant list for platform clients
+      ::  (never exposes access/refresh tokens — just provider-id,
+      ::  connected flag, scopes, and expiry status)
+      ::
+      [%x %grants %json ~]
+    =/  jon=json
+      :-  %a
+      %+  turn  ~(tap by grants)
+      |=  [pid=provider-id:oauth gra=grant:oauth]
+      ^-  json
+      =/  expires=@t
+        ?~  expires-at.gra  ''
+        (scot %da u.expires-at.gra)
+      =/  expired=?
+        ?~  expires-at.gra  %.n
+        (lth u.expires-at.gra now.bowl)
+      :-  %o
+      %-  malt
+      ^-  (list [@t json])
+      :~  ['provider' s+(scot %tas pid)]
+          ['connected' b+%.y]
+          ['expiresAt' s+expires]
+          ['expired' b+expired]
+          ['scopes' s+scopes.gra]
+      ==
+    ``json+!>(jon)
+  ::
       [%x %has-grant @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
     ``noun+!>((~(has by grants) pid))
