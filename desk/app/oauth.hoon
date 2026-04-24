@@ -754,12 +754,11 @@
       [%x %providers ~]
     ``noun+!>(providers)
   ::
-      ::  /x/grants: sanitized grant list for platform clients,
-      ::  pre-serialized as a JSON cord so thread callers (khan
-      ::  threads don't have en:json:html in scope) can just scry
-      ::  for @t and forward the bytes. Never exposes access/
-      ::  refresh tokens — just provider-id, connected flag, scopes,
-      ::  and expiry status. Scry as /gx/oauth/grants/noun.
+      ::  /x/grants: sanitized grant list for platform clients
+      ::  (never exposes access/refresh tokens — just provider-id,
+      ::  connected flag, scopes, and expiry status). Scry as
+      ::  /gx/oauth/grants/json — gall strips the /json mark before
+      ::  invoking on-peek, so we match /x/grants here.
       ::
       [%x %grants ~]
     =/  jon=json
@@ -782,7 +781,7 @@
           ['expired' b+expired]
           ['scopes' s+scopes.gra]
       ==
-    ``noun+!>(`@t`(en:json:html jon))
+    ``json+!>(jon)
   ::
       [%x %has-grant @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
