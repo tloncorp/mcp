@@ -51,6 +51,15 @@
       =/  [id=@t name=@t url=@t headers=(list header:mcp-proxy)]  (f jon)
       [%add-server `@tas`id [name url headers %.y (get-opt-tas 'oauth-provider') get-mode (get-opt-str 'schema-url')]]
     ::
+        %'config-oauth-server'
+      =/  f
+        %-  ot
+        :~  id+so  name+so  url+so
+            headers+(ar (ot ~[key+so value+so]))
+        ==
+      =/  [id=@t name=@t url=@t headers=(list header:mcp-proxy)]  (f jon)
+      [%config-oauth-server `@tas`id [name url headers %.y (get-opt-tas 'oauth-provider') get-mode (get-opt-str 'schema-url')]]
+    ::
         %'remove-server'
       [%remove-server `@tas`((ot ~[id+so]) jon)]
     ::

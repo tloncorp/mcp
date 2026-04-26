@@ -204,6 +204,12 @@
       ?:  (~(has by servers) id.act)  `this
       =.  servers  (~(put by servers) id.act mcp-server.act)
       =.  server-order  (snoc server-order id.act)
+      `this
+        %config-oauth-server
+      =/  existed=?  (~(has by servers) id.act)
+      =.  servers  (~(put by servers) id.act mcp-server.act)
+      =?  server-order  !existed
+        (snoc server-order id.act)
       ?:  ?&(=(%openapi mode.mcp-server.act) ?=(^ schema-url.mcp-server.act))
         (fetch-spec id.act u.schema-url.mcp-server.act)
       ?:  =(%proxy mode.mcp-server.act)
@@ -1529,6 +1535,9 @@
   ^-  (unit (unit cage))
   ?+  path  ~
       [%x %dbug %state ~]  ``noun+!>(state)
+      [%x %client-key ~]
+    =/  key=@t  ?~(client-key '' u.client-key)
+    ``noun+!>(key)
   ==
 ::
 ++  on-fail  on-fail:def
@@ -2322,6 +2331,19 @@
       =/  m=@t  (get-json-string jon 'mode')
       ?:(=('openapi' m) %openapi %proxy)
     [%add-server `@tas`id [name url headers %.y oprov md surl]]
+      %'config-oauth-server'
+    =/  f
+      %-  ot
+      :~  id+so  name+so  url+so
+          headers+(ar (ot ~[key+so value+so]))
+      ==
+    =/  [id=@t name=@t url=@t headers=(list header:mcp-proxy)]  (f jon)
+    =/  oprov=(unit @tas)  (get-optional-tas jon 'oauth-provider')
+    =/  surl=(unit @t)  (get-optional-string jon 'schema-url')
+    =/  md=server-mode:mcp-proxy
+      =/  m=@t  (get-json-string jon 'mode')
+      ?:(=('openapi' m) %openapi %proxy)
+    [%config-oauth-server `@tas`id [name url headers %.y oprov md surl]]
       %'remove-server'
     [%remove-server `@tas`((ot ~[id+so]) jon)]
       %'update-server'

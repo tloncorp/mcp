@@ -99,6 +99,7 @@
 +$  action
   $%  [%add-server id=server-id =mcp-server]
       [%remove-server id=server-id]
+      [%config-oauth-server id=server-id =mcp-server]
       [%update-server id=server-id =mcp-server]
       [%toggle-server id=server-id]
       [%login-server id=server-id]
