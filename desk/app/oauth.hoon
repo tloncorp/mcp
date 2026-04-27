@@ -658,6 +658,7 @@
       ?:  &(?=(^ old) ?=(~ refresh-token.u.gra))
         u.gra(refresh-token refresh-token.u.old)
       u.gra
+    ~&  [%oauth %grant-refreshed pid expires-at.final]
     =.  grants  (~(put by grants) pid final)
     =/  cards=(list card)
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-refreshed pid final])]
@@ -974,8 +975,12 @@
   =/  exp=(unit @da)
     =/  v=(unit json)  (~(get by p.jon) 'expires_in')
     ?~  v  ~
-    ?.  ?=(%n -.u.v)  ~
-    =/  secs=(unit @ud)  (slaw %ud p.u.v)
+    =/  raw=(unit @ta)
+      ?:  ?=(%n -.u.v)  `p.u.v
+      ?:  ?=(%s -.u.v)  `p.u.v
+      ~
+    ?~  raw  ~
+    =/  secs=(unit @ud)  (slaw %ud u.raw)
     ?~  secs  ~
     `(add now (mul u.secs ~s1))
   =/  sc=@t
