@@ -676,6 +676,7 @@
       ~&  [%oauth %refresh-failed pid %no-body]
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
+    ~&  [%oauth %refresh-body pid body]
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
       ~&  [%oauth %refresh-failed pid %bad-json]
