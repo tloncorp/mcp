@@ -158,9 +158,28 @@
         ~&  [%oauth %force-refresh-skip id.act %already-refreshing]
         `this
       =/  cfg=(unit provider-config:oauth)  (~(get by providers) id.act)
+      ::  no local provider-config: managed grant from the relay,
+      ::  client credentials live there. Route refresh through the relay.
+      ::
       ?~  cfg
-        ~&  [%oauth %force-refresh-skip id.act %no-provider-config]
-        `this
+        ?~  relay-url
+          ~&  [%oauth %force-refresh-skip id.act %no-config-no-relay]
+          `this
+        =.  refreshing  (~(put in refreshing) id.act)
+        ~&  [%oauth %force-refresh-relay id.act]
+        =/  body=@t  (build-relay-refresh-body id.act u.refresh-token.u.gra)
+        =/  url=@t   (rap 3 ~[u.relay-url '/v1/refresh'])
+        :_  this
+        :~  :*  %pass  /iris/relay-refresh/[id.act]
+                %arvo  %i  %request
+                :*  %'POST'
+                    url
+                    (relay-headers our.bowl now.bowl)
+                    `(as-octs:mimes:html body)
+                ==
+                *outbound-config:iris
+            ==
+        ==
       =.  refreshing  (~(put in refreshing) id.act)
       =/  body=@t
         (build-refresh-body u.cfg u.gra)
@@ -223,22 +242,30 @@
         %receive-grant
       ::  poked locally (pioneer → click thread → %oauth)
       ?>  =(our src):bowl
-      =.  grants  (~(put by grants) provider-id.act grant.act)
+      ::  on refresh, providers commonly omit refresh_token from the
+      ::  response — preserve the existing one so we don't lose the
+      ::  ability to refresh again.
+      ::
+      =/  old=(unit grant:oauth)  (~(get by grants) provider-id.act)
+      =/  final=grant:oauth  grant.act
+      =?  final  &(?=(^ old) ?=(~ refresh-token.final))
+        final(refresh-token refresh-token.u.old)
+      =.  grants  (~(put by grants) provider-id.act final)
       ::  schedule refresh timer if there's an expiry
       =/  timer-cards=(list card)
-        ?~  expires-at.grant.act  ~
-        ?~  refresh-token.grant.act  ~
+        ?~  expires-at.final  ~
+        ?~  refresh-token.final  ~
         =/  refresh-time=@da
           =/  margin=@dr  ~m5
-          ?:  (gth u.expires-at.grant.act (add now.bowl margin))
-            (sub u.expires-at.grant.act margin)
+          ?:  (gth u.expires-at.final (add now.bowl margin))
+            (sub u.expires-at.final margin)
           (add now.bowl ~s5)
         ^-  (list card)
         :~  [%pass /timer/refresh/[provider-id.act] %arvo %b %wait refresh-time]
         ==
       =/  notify=(list card)
         ^-  (list card)
-        :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-added provider-id.act grant.act])]
+        :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-added provider-id.act final])]
         ==
       [(weld timer-cards notify) this]
     ==
@@ -690,6 +717,32 @@
     :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-removed pid])]
     ==
   ::
+  ::  relay refresh response: clear the single-flight lock and log.
+  ::  the actual grant update arrives separately when the relay pokes
+  ::  pioneer, which click-pokes %receive-grant on this agent.
+  ::
+      [%iris %relay-refresh @ ~]
+    =/  pid=provider-id:oauth  i.t.t.wire
+    =.  refreshing  (~(del in refreshing) pid)
+    ?.  ?=([%iris %http-response *] sign)
+      ~&  [%oauth %relay-refresh-failed pid %bad-sign]
+      `this
+    =/  resp=client-response:iris  client-response.sign
+    ?.  ?=(%finished -.resp)
+      ~&  [%oauth %relay-refresh-failed pid %not-finished]
+      `this
+    =/  status=@ud  status-code.response-header.resp
+    ?.  &((gte status 200) (lth status 300))
+      =/  err-body=@t
+        ?~  full-file.resp  ''
+        `@t`q.data.u.full-file.resp
+      ~&  [%oauth %relay-refresh-failed pid %status status err-body]
+      :_  this
+      :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
+      ==
+    ~&  [%oauth %relay-refresh-ok pid]
+    `this
+  ::
   ::  refresh timer
   ::
       [%timer %refresh @ ~]
@@ -704,9 +757,26 @@
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
       ==
     =/  cfg=(unit provider-config:oauth)  (~(get by providers) pid)
+    ::  managed grant (no local config): route through relay if available
+    ::
     ?~  cfg
+      ?~  relay-url
+        :_  this
+        :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
+        ==
+      =.  refreshing  (~(put in refreshing) pid)
+      =/  body=@t  (build-relay-refresh-body pid u.refresh-token.u.gra)
+      =/  url=@t   (rap 3 ~[u.relay-url '/v1/refresh'])
       :_  this
-      :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
+      :~  :*  %pass  /iris/relay-refresh/[pid]
+              %arvo  %i  %request
+              :*  %'POST'
+                  url
+                  (relay-headers our.bowl now.bowl)
+                  `(as-octs:mimes:html body)
+              ==
+              *outbound-config:iris
+          ==
       ==
     =.  refreshing  (~(put in refreshing) pid)
     =/  body=@t
@@ -875,6 +945,33 @@
   =?  body  ?=(^ token-resource.cfg)
     (rap 3 ~[body '&resource=' u.token-resource.cfg])
   body
+::
+::  body for POST <relay>/v1/refresh: provider id + current refresh token
+::
+++  build-relay-refresh-body
+  |=  [pid=provider-id:oauth refresh-token=@t]
+  ^-  @t
+  %-  en:json:html
+  :-  %o
+  %-  malt
+  :~  ['provider' s+(scot %tas pid)]
+      ['refresh_token' s+refresh-token]
+  ==
+::
+::  HTTP headers for relay-mediated calls: bearer is the ship's +code
+::
+++  relay-headers
+  |=  [our=@p now=@da]
+  ^-  (list [@t @t])
+  =/  code=@p
+    .^(@p %j /(scot %p our)/code/(scot %da now)/(scot %p our))
+  =/  code-str=@t  (crip (slag 1 (scow %p code)))
+  =/  ship-str=@t  (crip (slag 1 (scow %p our)))
+  :~  ['content-type' 'application/json']
+      ['accept' 'application/json']
+      ['x-ship' ship-str]
+      ['authorization' (rap 3 ~['Bearer ' code-str])]
+  ==
 ::
 ++  make-verifier
   |=  eny=@
