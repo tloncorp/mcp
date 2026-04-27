@@ -1080,19 +1080,18 @@
   =/  exp=(unit @da)
     =/  v=(unit json)  (~(get by p.jon) 'expires_in')
     ?~  v  ~
-    ::  expires_in is sometimes a JSON number, sometimes a string;
-    ::  in either case the inner atom is the raw digit cord, which
-    ::  rush+dem:ag parses without requiring hoon's dotted format
-    ::  that slaw %ud expects.
+    ?+    -.u.v  ~
+        %n
+      =/  secs=(unit @ud)  (rush p.u.v dem:ag)
+      ~&  [%oauth %parse-exp-secs pid secs]
+      ?~  secs  ~
+      `(add now (mul u.secs ~s1))
     ::
-    =/  raw=(unit @t)
-      ?:  ?=(%n -.u.v)  `p.u.v
-      ?:  ?=(%s -.u.v)  `p.u.v
-      ~
-    ?~  raw  ~
-    =/  secs=(unit @ud)  (rush u.raw dem:ag)
-    ?~  secs  ~
-    `(add now (mul u.secs ~s1))
+        %s
+      =/  secs=(unit @ud)  (rush p.u.v dem:ag)
+      ?~  secs  ~
+      `(add now (mul u.secs ~s1))
+    ==
   =/  sc=@t
     =/  v=(unit json)  (~(get by p.jon) 'scope')
     ?~  v  ''
