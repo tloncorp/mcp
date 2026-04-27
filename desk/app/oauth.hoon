@@ -752,6 +752,17 @@
     ?:  (~(has in refreshing) pid)  `this
     =/  gra=(unit grant:oauth)  (~(get by grants) pid)
     ?~  gra  `this
+    ::  stale-timer guard: schedule sites always %wait at
+    ::  expires-at - 5min, so a current timer fires within ~5min of
+    ::  the grant's expiry. If expires-at is far in the future, this
+    ::  timer was orphaned by a more recent refresh that pushed the
+    ::  expiry out — skip it rather than refresh redundantly.
+    ::
+    ?:  ?&  ?=(^ expires-at.u.gra)
+            (gth u.expires-at.u.gra (add now.bowl ~m10))
+        ==
+      ~&  [%oauth %skip-stale-refresh-timer pid]
+      `this
     ?~  refresh-token.u.gra
       :_  this
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
