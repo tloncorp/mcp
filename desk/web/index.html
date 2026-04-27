@@ -46,14 +46,9 @@
           <div class="sheet-label">API KEY</div>
           <div class="sheet-value">
             <code id="agg-key">&mdash; not set &mdash;</code>
-            <div class="key-btns">
-              <button type="button" class="copy-btn" id="btn-regen-key" title="Generate random key">
-                <span class="copy-btn-label">GEN</span>
-              </button>
-              <button type="button" class="copy-btn" data-copy="agg-key" aria-label="Copy key">
-                <span class="copy-btn-label">COPY</span>
-              </button>
-            </div>
+            <button type="button" class="copy-btn" data-copy="agg-key" aria-label="Copy key">
+              <span class="copy-btn-label">COPY</span>
+            </button>
           </div>
         </div>
 
@@ -74,24 +69,21 @@
         <div class="code-mode-head">
           <div>
             <div class="code-mode-title">Code mode</div>
-            <div class="code-mode-sub">Collapse upstream tools into meta-tools so the LLM does not pay context cost for the full catalog.</div>
+            <div class="code-mode-sub" id="code-mode-status">&mdash;</div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="code-mode-toggle">
-            <span class="switch-track"><span class="switch-thumb"></span></span>
-          </label>
+          <span class="badge" id="code-mode-badge">unknown</span>
         </div>
       </div>
     </section>
 
-    <!-- ── CONNECTORS ───────────────────────────────────────────────────── -->
+    <!-- ── HOSTED CONFIG ────────────────────────────────────────────────── -->
 
     <section class="panel" id="section-connectors">
-      <h2 class="section-heading">Connectors</h2>
+      <h2 class="section-heading">Hosted configuration</h2>
 
-      <div id="connector-buttons" class="connector-buttons"></div>
+      <div id="hosted-summary" class="hosted-summary"></div>
 
-      <div id="connected-list" class="server-list"></div>
+      <div id="connected-list" class="server-list hosted-config-list"></div>
     </section>
 
     <footer class="console-foot">

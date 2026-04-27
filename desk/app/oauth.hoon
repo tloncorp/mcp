@@ -1141,6 +1141,10 @@
           ['clientId' s+client-id.cfg]
           ['redirectUri' s+redirect-uri.cfg]
           ['scopes' s+scopes.cfg]
+          :-  'tokenResource'
+          ?~  token-resource.cfg  ~
+          s+u.token-resource.cfg
+          ['tokenAuth' s+?:(?=(%body token-auth.cfg) 'body' 'basic')]
           ['hasSecret' b+!=('' client-secret.cfg)]
           ['hasGrant' b+(~(has by grants) pid)]
       ==

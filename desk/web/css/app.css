@@ -1092,6 +1092,7 @@ button {
 }
 
 .meta-val.accent { color: var(--saffron); }
+.meta-val.danger { color: var(--coral); }
 
 .meta-val .tag {
   display: inline-block;
@@ -1352,6 +1353,103 @@ button {
   text-transform: uppercase;
   color: var(--paper-mute);
   margin-bottom: var(--s-4);
+}
+
+.hosted-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--ink-2);
+  overflow: hidden;
+  margin-bottom: var(--s-4);
+}
+
+.summary-cell {
+  padding: var(--s-3);
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+
+.summary-cell:last-child { border-right: none; }
+
+.summary-label {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--paper-mute);
+  margin-bottom: 6px;
+}
+
+.summary-value {
+  font-size: 20px;
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+
+.hosted-config-list {
+  gap: var(--s-4);
+}
+
+.hosted-card {
+  padding-bottom: 0;
+}
+
+.hosted-meta {
+  border-bottom: none;
+}
+
+.meta-row-block {
+  align-items: start;
+}
+
+.upstream-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.sub-row {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: var(--s-2);
+  min-width: 0;
+}
+
+.sub-row.muted {
+  color: var(--paper-mute);
+  border-style: dashed;
+}
+
+.sub-row-main {
+  color: var(--paper);
+  font-weight: 500;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.sub-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+  color: var(--paper-mute);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.sub-row-url {
+  color: var(--saffron);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .hosted-summary { grid-template-columns: 1fr 1fr; }
+  .summary-cell:nth-child(2) { border-right: none; }
+  .summary-cell:nth-child(1),
+  .summary-cell:nth-child(2) { border-bottom: 1px solid var(--line); }
 }
 
 .connector-buttons {
