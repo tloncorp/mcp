@@ -1080,15 +1080,24 @@
     p.u.v
   =/  exp=(unit @da)
     =/  v=(unit json)  (~(get by p.jon) 'expires_in')
-    ?~  v  ~
-    =/  raw=(unit @ta)
-      ?:  ?=(%n -.u.v)  `p.u.v
-      ?:  ?=(%s -.u.v)  `p.u.v
+    ?~  v
+      ~&  [%oauth %parse-exp pid %missing]
       ~
-    ?~  raw  ~
-    =/  secs=(unit @ud)  (slaw %ud u.raw)
-    ?~  secs  ~
-    `(add now (mul u.secs ~s1))
+    ~&  [%oauth %parse-exp pid %tag -.u.v]
+    ?+  -.u.v
+        ~
+      %n
+        ~&  [%oauth %parse-exp pid %n p.u.v]
+        =/  secs=(unit @ud)  (slaw %ud p.u.v)
+        ?~  secs
+          ~&  [%oauth %parse-exp pid %slaw-failed]
+          ~
+        `(add now (mul u.secs ~s1))
+      %s
+        =/  secs=(unit @ud)  (slaw %ud p.u.v)
+        ?~  secs  ~
+        `(add now (mul u.secs ~s1))
+    ==
   =/  sc=@t
     =/  v=(unit json)  (~(get by p.jon) 'scope')
     ?~  v  ''
