@@ -676,7 +676,6 @@
       ~&  [%oauth %refresh-failed pid %no-body]
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
-    ~&  [%oauth %refresh-body pid body]
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
       ~&  [%oauth %refresh-failed pid %bad-json]
@@ -1080,24 +1079,20 @@
     p.u.v
   =/  exp=(unit @da)
     =/  v=(unit json)  (~(get by p.jon) 'expires_in')
-    ?~  v
-      ~&  [%oauth %parse-exp pid %missing]
+    ?~  v  ~
+    ::  expires_in is sometimes a JSON number, sometimes a string;
+    ::  in either case the inner atom is the raw digit cord, which
+    ::  rush+dem:ag parses without requiring hoon's dotted format
+    ::  that slaw %ud expects.
+    ::
+    =/  raw=(unit @t)
+      ?:  ?=(%n -.u.v)  `p.u.v
+      ?:  ?=(%s -.u.v)  `p.u.v
       ~
-    ~&  [%oauth %parse-exp pid %tag -.u.v]
-    ?+  -.u.v
-        ~
-      %n
-        ~&  [%oauth %parse-exp pid %n p.u.v]
-        =/  secs=(unit @ud)  (slaw %ud p.u.v)
-        ?~  secs
-          ~&  [%oauth %parse-exp pid %slaw-failed]
-          ~
-        `(add now (mul u.secs ~s1))
-      %s
-        =/  secs=(unit @ud)  (slaw %ud p.u.v)
-        ?~  secs  ~
-        `(add now (mul u.secs ~s1))
-    ==
+    ?~  raw  ~
+    =/  secs=(unit @ud)  (rush u.raw dem:ag)
+    ?~  secs  ~
+    `(add now (mul u.secs ~s1))
   =/  sc=@t
     =/  v=(unit json)  (~(get by p.jon) 'scope')
     ?~  v  ''
