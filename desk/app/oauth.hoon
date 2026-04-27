@@ -148,11 +148,19 @@
         %force-refresh
       ::  trigger immediate token refresh (called by %mcp-proxy on 401)
       =/  gra=(unit grant:oauth)  (~(get by grants) id.act)
-      ?~  gra  `this
-      ?~  refresh-token.u.gra  `this
-      ?:  (~(has in refreshing) id.act)  `this
+      ?~  gra
+        ~&  [%oauth %force-refresh-skip id.act %no-grant]
+        `this
+      ?~  refresh-token.u.gra
+        ~&  [%oauth %force-refresh-skip id.act %no-refresh-token]
+        `this
+      ?:  (~(has in refreshing) id.act)
+        ~&  [%oauth %force-refresh-skip id.act %already-refreshing]
+        `this
       =/  cfg=(unit provider-config:oauth)  (~(get by providers) id.act)
-      ?~  cfg  `this
+      ?~  cfg
+        ~&  [%oauth %force-refresh-skip id.act %no-provider-config]
+        `this
       =.  refreshing  (~(put in refreshing) id.act)
       =/  body=@t
         (build-refresh-body u.cfg u.gra)
