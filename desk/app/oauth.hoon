@@ -11,7 +11,7 @@
 --
 ::
 %-  agent:dbug
-=|  state-1:oauth
+=|  state-2:oauth
 =*  state  -
 =/  refreshing  *(set provider-id:oauth)  ::  in-flight refresh locks (non-persisted)
 ::  in-flight remote-connect flows: wire-id -> {eyre-id, return-to}
@@ -38,10 +38,11 @@
   =/  old  (mule |.(!<(versioned-state:oauth old-state)))
   ?:  ?=(%| -.old)
     on-init
-  =/  new-state=state-1:oauth
+  =/  new-state=state-2:oauth
     ?-  -.p.old
-        %1  p.old
-        %0  [%1 providers.p.old grants.p.old pending.p.old ~]
+        %2  p.old
+        %1  [%2 (upgrade-provider-map providers.p.old) grants.p.old pending.p.old relay-url.p.old]
+        %0  [%2 (upgrade-provider-map providers.p.old) grants.p.old pending.p.old ~]
     ==
   ::  re-register refresh timers for all grants with expiry
   =/  eyre-cards=(list card)
@@ -106,6 +107,10 @@
       =.  providers  (~(put by providers) id.act new-cfg)
       `this
     ::
+        %config-provider
+      =.  providers  (~(put by providers) id.act config.act)
+      `this
+    ::
         %connect
       =/  cfg=(unit provider-config:oauth)  (~(get by providers) id.act)
       ?~  cfg
@@ -150,22 +155,14 @@
       ?~  cfg  `this
       =.  refreshing  (~(put in refreshing) id.act)
       =/  body=@t
-        %+  rap  3
-        :~  'grant_type=refresh_token'
-            '&refresh_token='
-            u.refresh-token.u.gra
-        ==
-      =/  basic-auth=@t  (make-basic-auth client-id.u.cfg client-secret.u.cfg)
+        (build-refresh-body u.cfg u.gra)
       ~&  [%oauth %force-refresh id.act]
       :_  this
       :~  :*  %pass  /iris/token-refresh/[id.act]
               %arvo  %i  %request
               :*  %'POST'
                   token-url.u.cfg
-                  :~  ['content-type' 'application/x-www-form-urlencoded']
-                      ['accept' 'application/json']
-                      ['authorization' basic-auth]
-                  ==
+                  (token-headers u.cfg)
                   `(as-octs:mimes:html body)
               ==
               *outbound-config:iris
@@ -323,16 +320,7 @@
     ::  build token exchange request
     ::
     =/  body=@t
-      %+  rap  3
-      :~  'grant_type=authorization_code'
-          '&code='
-          u.code
-          '&redirect_uri='
-          redirect-uri.u.cfg
-          '&code_verifier='
-          verifier.u.pend
-      ==
-    =/  basic-auth=@t  (make-basic-auth client-id.u.cfg client-secret.u.cfg)
+      (build-code-exchange-body u.cfg u.code verifier.u.pend)
     ::  send token exchange via iris, serve wait page
     ::
     :_  this
@@ -341,10 +329,7 @@
               %arvo  %i  %request
               :*  %'POST'
                   token-url.u.cfg
-                  :~  ['content-type' 'application/x-www-form-urlencoded']
-                      ['accept' 'application/json']
-                      ['authorization' basic-auth]
-                  ==
+                  (token-headers u.cfg)
                   `(as-octs:mimes:html body)
               ==
               *outbound-config:iris
@@ -716,21 +701,13 @@
       ==
     =.  refreshing  (~(put in refreshing) pid)
     =/  body=@t
-      %+  rap  3
-      :~  'grant_type=refresh_token'
-          '&refresh_token='
-          u.refresh-token.u.gra
-      ==
-    =/  basic-auth=@t  (make-basic-auth client-id.u.cfg client-secret.u.cfg)
+      (build-refresh-body u.cfg u.gra)
     :_  this
     :~  :*  %pass  /iris/token-refresh/[pid]
             %arvo  %i  %request
             :*  %'POST'
                 token-url.u.cfg
-                :~  ['content-type' 'application/x-www-form-urlencoded']
-                    ['accept' 'application/json']
-                    ['authorization' basic-auth]
-                ==
+                (token-headers u.cfg)
                 `(as-octs:mimes:html body)
             ==
             *outbound-config:iris
@@ -810,12 +787,85 @@
 ::
 ::  PKCE helpers
 ::
+++  upgrade-provider-map
+  |=  old=(map provider-id:oauth provider-config-1:oauth)
+  ^-  (map provider-id:oauth provider-config:oauth)
+  %-  ~(gas by *(map provider-id:oauth provider-config:oauth))
+  %+  turn  ~(tap by old)
+  |=  [pid=provider-id:oauth cfg=provider-config-1:oauth]
+  [pid (upgrade-provider-config cfg)]
+::
+++  upgrade-provider-config
+  |=  cfg=provider-config-1:oauth
+  ^-  provider-config:oauth
+  [auth-url.cfg token-url.cfg revoke-url.cfg client-id.cfg client-secret.cfg redirect-uri.cfg scopes.cfg ~ %basic]
+::
 ++  make-basic-auth
   |=  [client-id=@t client-secret=@t]
   ^-  @t
   =/  creds=@t  (rap 3 ~[client-id ':' client-secret])
   =/  encoded=@t  (en:base64:mimes:html [(met 3 creds) creds])
   (rap 3 ~['Basic ' encoded])
+::
+++  token-headers
+  |=  cfg=provider-config:oauth
+  ^-  (list [@t @t])
+  =/  headers=(list [@t @t])
+    :~  ['content-type' 'application/x-www-form-urlencoded']
+        ['accept' 'application/json']
+    ==
+  ?:  ?&  =(%basic token-auth.cfg)
+          !=('' client-secret.cfg)
+      ==
+    (snoc headers ['authorization' (make-basic-auth client-id.cfg client-secret.cfg)])
+  headers
+::
+++  build-code-exchange-body
+  |=  [cfg=provider-config:oauth code=@t verifier=@t]
+  ^-  @t
+  =/  body=@t
+    %+  rap  3
+    :~  'grant_type=authorization_code'
+        '&code='
+        code
+        '&redirect_uri='
+        redirect-uri.cfg
+        '&code_verifier='
+        verifier
+    ==
+  =?  body  ?|  =(%body token-auth.cfg)
+                =('' client-secret.cfg)
+            ==
+    (rap 3 ~[body '&client_id=' client-id.cfg])
+  =?  body  ?&  =(%body token-auth.cfg)
+                 !=('' client-secret.cfg)
+             ==
+    (rap 3 ~[body '&client_secret=' client-secret.cfg])
+  =?  body  ?=(^ token-resource.cfg)
+    (rap 3 ~[body '&resource=' u.token-resource.cfg])
+  body
+::
+++  build-refresh-body
+  |=  [cfg=provider-config:oauth gra=grant:oauth]
+  ^-  @t
+  =/  refresh-token=@t  ?~(refresh-token.gra '' u.refresh-token.gra)
+  =/  body=@t
+    %+  rap  3
+    :~  'grant_type=refresh_token'
+        '&refresh_token='
+        refresh-token
+    ==
+  =?  body  ?|  =(%body token-auth.cfg)
+                =('' client-secret.cfg)
+            ==
+    (rap 3 ~[body '&client_id=' client-id.cfg])
+  =?  body  ?&  =(%body token-auth.cfg)
+                 !=('' client-secret.cfg)
+             ==
+    (rap 3 ~[body '&client_secret=' client-secret.cfg])
+  =?  body  ?=(^ token-resource.cfg)
+    (rap 3 ~[body '&resource=' u.token-resource.cfg])
+  body
 ::
 ++  make-verifier
   |=  eny=@
@@ -863,21 +913,25 @@
 ++  build-auth-url
   |=  [cfg=provider-config:oauth state=@t challenge=@t]
   ^-  @t
-  %+  rap  3
-  :~  auth-url.cfg
-      '?client_id='
-      client-id.cfg
-      '&redirect_uri='
-      redirect-uri.cfg
-      '&response_type=code'
-      '&state='
-      state
-      '&code_challenge='
-      challenge
-      '&code_challenge_method=S256'
-      '&scope='
-      scopes.cfg
-  ==
+  =/  auth=@t
+    %+  rap  3
+    :~  auth-url.cfg
+        '?client_id='
+        client-id.cfg
+        '&redirect_uri='
+        redirect-uri.cfg
+        '&response_type=code'
+        '&state='
+        state
+        '&code_challenge='
+        challenge
+        '&code_challenge_method=S256'
+        '&scope='
+        scopes.cfg
+    ==
+  =?  auth  ?=(^ token-resource.cfg)
+    (rap 3 ~[auth '&resource=' u.token-resource.cfg])
+  auth
 ::
 ::  query param extractor
 ::
@@ -940,6 +994,38 @@
   ?:  ?=(%& -.res)  `p.res
   ~
 ::
+++  parse-provider-config
+  |=  jon=json
+  ^-  [id=@t config=provider-config:oauth]
+  ?>  ?=(%o -.jon)
+  =,  dejs:format
+  =/  f
+    %-  ot
+    :~  id+so
+        auth-url+so
+        token-url+so
+        revoke-url+(mu so)
+        client-id+so
+        client-secret+so
+        redirect-uri+so
+        scopes+so
+    ==
+  =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
+    (f jon)
+  =/  token-resource=(unit @t)
+    =/  v=(unit json)  (~(get by p.jon) 'token-resource')
+    ?~  v  ~
+    ?.  ?=(%s -.u.v)  ~
+    ?:  =('' p.u.v)  ~
+    `p.u.v
+  =/  token-auth=token-auth-mode:oauth
+    =/  v=(unit json)  (~(get by p.jon) 'token-auth')
+    ?~  v  %basic
+    ?.  ?=(%s -.u.v)  %basic
+    ?:  =('body' p.u.v)  %body
+    %basic
+  [id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes token-resource token-auth]]
+::
 ++  action-from-json-raw
   |=  jon=json
   ^-  action:oauth
@@ -947,20 +1033,16 @@
   =/  typ=@t  ((ot ~[action+so]) jon)
   ?+  typ  !!
       %'add-provider'
-    =/  f
-      %-  ot
-      :~  id+so
-          auth-url+so
-          token-url+so
-          revoke-url+(mu so)
-          client-id+so
-          client-secret+so
-          redirect-uri+so
-          scopes+so
-      ==
-    =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
-      (f jon)
-    [%add-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes]]
+    =/  parsed=[id=@t config=provider-config:oauth]  (parse-provider-config jon)
+    [%add-provider `@tas`id.parsed config.parsed]
+  ::
+      %'update-provider'
+    =/  parsed=[id=@t config=provider-config:oauth]  (parse-provider-config jon)
+    [%update-provider `@tas`id.parsed config.parsed]
+  ::
+      %'config-provider'
+    =/  parsed=[id=@t config=provider-config:oauth]  (parse-provider-config jon)
+    [%config-provider `@tas`id.parsed config.parsed]
   ::
       %'remove-provider'
     [%remove-provider `@tas`((ot ~[id+so]) jon)]

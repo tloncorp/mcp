@@ -12,6 +12,20 @@
 ::  .client-secret: OAuth client secret
 ::  .redirect-uri: callback URL on this ship
 ::  .scopes: space-separated scope string
+::  .token-resource: optional MCP/RFC8707 resource indicator
+::  .token-auth: where token endpoint client credentials are sent
+::
++$  token-auth-mode  ?(%basic %body)
+::
++$  provider-config-1
+  $:  auth-url=@t
+      token-url=@t
+      revoke-url=(unit @t)
+      client-id=@t
+      client-secret=@t
+      redirect-uri=@t
+      scopes=@t
+  ==
 ::
 +$  provider-config
   $:  auth-url=@t
@@ -21,6 +35,8 @@
       client-secret=@t
       redirect-uri=@t
       scopes=@t
+      token-resource=(unit @t)
+      token-auth=token-auth-mode
   ==
 ::
 ::  $grant: stored OAuth token set
@@ -55,7 +71,7 @@
 ::
 +$  state-0
   $:  %0
-      providers=(map provider-id provider-config)
+      providers=(map provider-id provider-config-1)
       grants=(map provider-id grant)
       pending=(map @t pending-auth)
   ==
@@ -66,21 +82,31 @@
 ::
 +$  state-1
   $:  %1
-      providers=(map provider-id provider-config)
+      providers=(map provider-id provider-config-1)
       grants=(map provider-id grant)
       pending=(map @t pending-auth)
       relay-url=(unit @t)         ::  e.g. https://oauth.tlon.network
   ==
 ::
++$  state-2
+  $:  %2
+      providers=(map provider-id provider-config)
+      grants=(map provider-id grant)
+      pending=(map @t pending-auth)
+      relay-url=(unit @t)
+  ==
+::
 +$  versioned-state
   $%  state-0
       state-1
+      state-2
   ==
 ::
 +$  action
   $%  [%add-provider id=provider-id config=provider-config]
       [%remove-provider id=provider-id]
       [%update-provider id=provider-id config=provider-config]
+      [%config-provider id=provider-id config=provider-config]
       [%connect id=provider-id]
       [%disconnect id=provider-id]
       [%revoke id=provider-id]
