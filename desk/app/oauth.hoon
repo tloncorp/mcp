@@ -1080,18 +1080,13 @@
   =/  exp=(unit @da)
     =/  v=(unit json)  (~(get by p.jon) 'expires_in')
     ?~  v  ~
-    ?+    -.u.v  ~
-        %n
-      =/  secs=(unit @ud)  (rush p.u.v dem:ag)
-      ~&  [%oauth %parse-exp-secs pid secs]
-      ?~  secs  ~
-      `(add now (mul u.secs ~s1))
-    ::
-        %s
-      =/  secs=(unit @ud)  (rush p.u.v dem:ag)
-      ?~  secs  ~
-      `(add now (mul u.secs ~s1))
-    ==
+    =/  res=(each @ud tang)
+      %-  mule  |.
+      ?:  ?=(%n -.u.v)  (ni:dejs:format u.v)
+      ?:  ?=(%s -.u.v)  (rash p.u.v dem:ag)
+      !!
+    ?.  ?=(%& -.res)  ~
+    `(add now (mul p.res ~s1))
   =/  sc=@t
     =/  v=(unit json)  (~(get by p.jon) 'scope')
     ?~  v  ''
