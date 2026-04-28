@@ -198,7 +198,7 @@
           '/apps/mcp/js/app.js'
           '/apps/mcp/js/api.js'
       ==
-    ~&  [%mcp-proxy %clearing-eyre-cache (lent urls)]
+    ::  noisy on every login-cache invalidation; not useful as a log
     :_  this
     %+  turn  urls
     |=(url=@t [%pass /eyre/cache %arvo %e %set-response url ~])
@@ -265,9 +265,8 @@
         %login-server
       =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) id.act)
       ?~  srv
-        ~&  [%mcp-proxy %server-not-found id.act]
+        ~&  >>>  [%mcp-proxy %server-not-found id.act]
         `this
-      ~&  [%mcp-proxy %found-server name.u.srv url.u.srv]
       (do-login id.act u.srv)
     ::
         %set-client-key
@@ -324,7 +323,6 @@
     =/  base=@t  (get-base-url url.srv)
     =/  login-url=@t  (cat 3 base '/~/login')
     =/  body=@t  (cat 3 'password=' pass)
-    ~&  [%mcp-proxy %logging-in login-url]
     :_  this
     :~  :*  %pass  /iris/login/[sid]
             %arvo  %i  %request
@@ -336,7 +334,6 @@
   ++  fetch-spec
     |=  [sid=server-id:mcp-proxy url=@t]
     ^-  (quip card _this)
-    ~&  [%mcp-proxy %fetching-spec sid url]
     :_  this
     :~  :*  %pass  /iris/spec/[sid]
             %arvo  %i  %request
@@ -582,7 +579,6 @@
       (fan-out eyre-id req-id method)
     ::
         ?(%'tools/call' %'resources/read' %'prompts/get')
-      ~&  [%mcp-proxy %routing-call method (get-json-string (get-json-field u.jon 'params') 'name')]
       ::  code-mode: intercept the meta-tool calls before normal routing
       ?:  &(=(%'tools/call' method) code-mode)
         =/  params=json  (get-json-field u.jon 'params')
@@ -752,10 +748,9 @@
       (snoc out-headers u.oauth-hdr)
     ::  openapi mode: make direct REST API call
     ?:  =(%openapi mode.u.srv)
-      ~&  [%mcp-proxy %openapi-call sid real-name]
       =/  spec=(unit json)  (~(get by spec-cache) `@tas`sid)
       ?~  spec
-        ~&  [%mcp-proxy %spec-not-cached sid]
+        ~&  >>>  [%mcp-proxy %spec-not-cached sid]
         :_  this
         %-  give-http  :^  eyre-id  500
         ~[cors ['content-type' 'application/json']]
@@ -763,12 +758,11 @@
       =/  op=(unit [path=@t method=@t operation=json])
         (find-operation u.spec real-name)
       ?~  op
-        ~&  [%mcp-proxy %op-not-found sid real-name]
+        ~&  >>>  [%mcp-proxy %op-not-found sid real-name]
         :_  this
         %-  give-http  :^  eyre-id  404
         ~[cors ['content-type' 'application/json']]
         (some (as-octs:mimes:html '{"error":"operation not found in spec"}'))
-      ~&  [%mcp-proxy %found-op path.u.op method.u.op]
       ::  extract arguments from params
       =/  args=json
         =/  a=(unit json)  ?.(?=(%o -.params) ~ (~(get by p.params) 'arguments'))
@@ -794,13 +788,12 @@
           (cat 3 (crip override-t) spec-base)
         ?:  !=('' override)  override
         spec-base
-      ~&  [%mcp-proxy %base-url base-url]
       ::  no base URL means we'd issue a relative-URL request to iris
       ::  and crash the agent. Return a structured error instead so
       ::  the LLM gets an actionable message.
       ::
       ?:  =('' base-url)
-        ~&  [%mcp-proxy %no-base-url sid]
+        ~&  >>>  [%mcp-proxy %no-base-url sid]
         :_  this
         %-  give-http  :^  eyre-id  400
         ~[cors ['content-type' 'application/json']]
@@ -813,11 +806,8 @@
         ==
       =/  api-url=@t
         =/  base-with-path=@t  (build-api-url base-url path.u.op args)
-        ~&  [%mcp-proxy %base-with-path base-with-path]
         =/  qs=@t  (build-all-args-query args path-params)
-        ~&  [%mcp-proxy %query-string qs]
         (cat 3 base-with-path qs)
-      ~&  [%mcp-proxy %api-url api-url]
       ::  build body for POST/PUT/PATCH
       =/  req-method=method:http
         ?+  method.u.op  %'GET'
@@ -1269,7 +1259,7 @@
     ?~  eid
       =.  retry-context  (~(del by retry-context) wire-id)
       `this
-    ~&  [%mcp-proxy %retry-timeout wire-id pid.u.ctx]
+    ~&  >>  [%mcp-proxy %retry-timeout wire-id pid.u.ctx]
     =.  retry-context  (~(del by retry-context) wire-id)
     =.  pending  (~(del by pending) wire-id)
     =.  wrap-set  (~(del by wrap-set) wire-id)
@@ -1291,32 +1281,31 @@
     ::
     =/  sid=server-id:mcp-proxy  i.t.t.wire
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%mcp-proxy %prime-failed sid %bad-sign]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%mcp-proxy %prime-failed sid %not-finished]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %not-finished]
       `this
     ?.  =(200 status-code.response-header.resp)
-      ~&  [%mcp-proxy %prime-failed sid %status status-code.response-header.resp]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %status status-code.response-header.resp]
       `this
     ?~  full-file.resp
-      ~&  [%mcp-proxy %prime-failed sid %no-body]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %no-body]
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
     =/  clean=@t  (strip-sse body)
     =/  jon=(unit json)  (de:json:html clean)
     ?~  jon
-      ~&  [%mcp-proxy %prime-failed sid %bad-json]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %bad-json]
       `this
     =/  result=json  (get-json-field u.jon 'result')
     ?~  result
-      ~&  [%mcp-proxy %prime-failed sid %no-result]
+      ~&  >>>  [%mcp-proxy %prime-failed sid %no-result]
       `this
     =/  tl=json  (get-json-field result 'tools')
     ?~  tl  `this
     ?.  ?=(%a -.tl)  `this
-    ~&  [%mcp-proxy %primed sid (lent p.tl)]
     `this(proxy-tools-cache (~(put by proxy-tools-cache) sid p.tl))
   ::
       [%iris %spec @ ~]
@@ -1324,24 +1313,23 @@
     ::
     =/  sid=server-id:mcp-proxy  i.t.t.wire
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%mcp-proxy %spec-fetch-failed sid %bad-sign]
+      ~&  >>>  [%mcp-proxy %spec-fetch-failed sid %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%mcp-proxy %spec-fetch-failed sid %not-finished]
+      ~&  >>>  [%mcp-proxy %spec-fetch-failed sid %not-finished]
       `this
     ?.  =(200 status-code.response-header.resp)
-      ~&  [%mcp-proxy %spec-fetch-failed sid %status status-code.response-header.resp]
+      ~&  >>>  [%mcp-proxy %spec-fetch-failed sid %status status-code.response-header.resp]
       `this
     ?~  full-file.resp
-      ~&  [%mcp-proxy %spec-fetch-failed sid %no-body]
+      ~&  >>>  [%mcp-proxy %spec-fetch-failed sid %no-body]
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
-      ~&  [%mcp-proxy %spec-fetch-failed sid %bad-json]
+      ~&  >>>  [%mcp-proxy %spec-fetch-failed sid %bad-json]
       `this
-    ~&  [%mcp-proxy %spec-cached sid]
     `this(spec-cache (~(put by spec-cache) sid u.jon))
   ::
       [%iris %toolsapi @ @ ~]
@@ -1363,7 +1351,6 @@
       `@t`q.data.u.full-file.resp
     ::  strip SSE prefix if present
     =/  clean=@t  (strip-sse body)
-    ~&  [%mcp-proxy %toolsapi-body wire-id (met 3 clean)]
     =/  jon=(unit json)  (de:json:html clean)
     =/  tools=(list json)
       ?~  jon  ~
@@ -1373,7 +1360,7 @@
       ?~  result
         =/  err=json  (get-json-field u.jon 'error')
         ?~  err  ~
-        ~&  [%mcp-proxy %toolsapi-error wire-id err]
+        ~&  >>>  [%mcp-proxy %toolsapi-error wire-id err]
         ~
       =/  tl=json  (get-json-field result 'tools')
       ?~  tl  ~
@@ -1389,14 +1376,14 @@
       [%iris %login @ ~]
     =/  sid=server-id:mcp-proxy  i.t.t.wire
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%mcp-proxy %login-failed sid %bad-sign]
+      ~&  >>>  [%mcp-proxy %login-failed sid %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%mcp-proxy %login-failed sid %not-finished]
+      ~&  >>>  [%mcp-proxy %login-failed sid %not-finished]
       `this
     ?.  =(200 status-code.response-header.resp)
-      ~&  [%mcp-proxy %login-failed sid %status status-code.response-header.resp]
+      ~&  >>>  [%mcp-proxy %login-failed sid %status status-code.response-header.resp]
       `this
     =/  cookie=(unit @t)
       =/  hdrs=(list [key=@t value=@t])  headers.response-header.resp
@@ -1409,9 +1396,8 @@
         `(crip (scag u.semi val))
       $(hdrs t.hdrs)
     ?~  cookie
-      ~&  [%mcp-proxy %login-failed sid %no-cookie]
+      ~&  >>>  [%mcp-proxy %login-failed sid %no-cookie]
       `this
-    ~&  [%mcp-proxy %login-ok sid]
     `this(cookies (~(put by cookies) sid u.cookie))
   ::
   ::
@@ -1419,7 +1405,7 @@
     =/  wire-id=@t  i.t.t.wire
     =/  eid=(unit @ta)  (~(get by pending) wire-id)
     ?~  eid
-      ~&  [%mcp-proxy %no-pending wire-id]
+      ~&  >>  [%mcp-proxy %no-pending wire-id]
       `this
     ::  if iris failed before producing a response, fall through to
     ::  the existing 502 path. Otherwise read status; on 401 with a
@@ -1441,7 +1427,7 @@
       ::  giveup timer; the on-agent grants handler will replay or
       ::  fail this stash when the refresh resolves.
       ::
-      ~&  [%mcp-proxy %defer-401 wire-id pid.u.retry-ctx]
+      ~&  >  [%mcp-proxy %defer-401 wire-id pid.u.retry-ctx]
       :_  this
       :~  [%pass /oauth-refresh/[pid.u.retry-ctx] %agent [our.bowl %oauth] %poke %oauth-action !>(`action:oauth`[%force-refresh pid.u.retry-ctx])]
           [%pass /retry-timeout/[wire-id] %arvo %b %wait (add now.bowl ~s30)]
@@ -1522,30 +1508,29 @@
     =/  sid=server-id:mcp-proxy  i.t.t.t.wire
     =/  req=(unit agg-request)  (~(get by agg-pending) group-id)
     ?~  req
-      ~&  [%mcp-proxy %agg-no-pending group-id sid]
+      ~&  >>  [%mcp-proxy %agg-no-pending group-id sid]
       `this
     ::  parse the upstream response (handles both plain JSON and SSE format)
     =/  result-json=(unit json)
       ?.  ?=([%iris %http-response *] sign)
-        ~&  [%mcp-proxy %agg-bad-sign sid]
+        ~&  >>>  [%mcp-proxy %agg-bad-sign sid]
         ~
       =/  resp=client-response:iris  client-response.sign
       ?.  ?=(%finished -.resp)
-        ~&  [%mcp-proxy %agg-not-finished sid]
+        ~&  >>>  [%mcp-proxy %agg-not-finished sid]
         ~
       ?.  =(200 status-code.response-header.resp)
         =/  body-preview=@t
           ?~  full-file.resp  'no body'
           =/  b=@t  `@t`q.data.u.full-file.resp
-          ?:  (gth (met 3 b) 500)  b
+          ?:  (gth (met 3 b) 500)  (cat 3 (cut 3 [0 500] b) '...[truncated]')
           b
-        ~&  [%mcp-proxy %agg-non-200 sid status-code.response-header.resp body-preview]
+        ~&  >>>  [%mcp-proxy %agg-non-200 sid status-code.response-header.resp body-preview]
         ~
       ?~  full-file.resp
-        ~&  [%mcp-proxy %agg-empty-body sid]
+        ~&  >>>  [%mcp-proxy %agg-empty-body sid]
         ~
       =/  body=@t  `@t`q.data.u.full-file.resp
-      ~&  [%mcp-proxy %agg-body sid (met 3 body)]
       ::  strip SSE "data: " prefix if present
       =/  clean=@t  (strip-sse body)
       (de:json:html clean)
@@ -1630,7 +1615,7 @@
     ?+  -.sign  (on-agent:def wire sign)
         %watch-ack
       ?~  p.sign  `this
-      ~&  [%mcp-proxy %oauth-watch-nack u.p.sign]
+      ~&  >>>  [%mcp-proxy %oauth-watch-nack u.p.sign]
       `this
     ::
         %kick
