@@ -32,6 +32,13 @@
 ::  effect of fan-out, used by code-mode meta tools to search
 ::  without round-tripping back to upstreams.
 =/  proxy-tools-cache  *(map server-id:mcp-proxy (list json))
+::  401 retry plumbing. when an iris call to an upstream returns 401
+::  AND the call carried an oauth bearer, stash the wire's iris request
+::  here and trigger %force-refresh on %oauth. when the new grant fact
+::  arrives, replay the request once with the rotated bearer. wires in
+::  retried-wires are not retried a second time.
+=/  retry-context  *(map @t [pid=@tas request=request:http])
+=/  retried-wires  *(set @t)
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -57,6 +64,7 @@
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
         (sync-server-key-card our.bowl initial-key)
+        [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]
     ==
   =/  prime-cards=(list card)
     (prime-proxy-cards servers server-order cookies our.bowl now.bowl sid)
@@ -74,6 +82,7 @@
   =/  eyre-cards=(list card)
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
+        [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]
     ==
   =/  raw-state=state-5:mcp-proxy
     ?-  -.p.old
@@ -831,6 +840,8 @@
       =.  pending  (~(put by pending) wire-id eyre-id)
       =.  wrap-set  (~(put by wrap-set) wire-id client-rpc-id)
       =/  =request:http  [req-method api-url out-headers body]
+      =?  retry-context  ?=(^ oauth-provider.u.srv)
+        (~(put by retry-context) wire-id [u.oauth-provider.u.srv request])
       :_  this
       :~  [%pass /iris/proxy/[wire-id] %arvo %i %request request *outbound-config:iris]
       ==
@@ -857,12 +868,12 @@
       (snoc mcp-headers u.oauth-hdr)
     =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
     =.  pending  (~(put by pending) wire-id eyre-id)
+    =/  proxy-req=request:http
+      [%'POST' url.u.srv mcp-headers `(as-octs:mimes:html new-body)]
+    =?  retry-context  ?=(^ oauth-provider.u.srv)
+      (~(put by retry-context) wire-id [u.oauth-provider.u.srv proxy-req])
     :_  this
-    :~  :*  %pass  /iris/proxy/[wire-id]
-            %arvo  %i  %request
-            [%'POST' url.u.srv mcp-headers `(as-octs:mimes:html new-body)]
-            *outbound-config:iris
-        ==
+    :~  [%pass /iris/proxy/[wire-id] %arvo %i %request proxy-req *outbound-config:iris]
     ==
   ::
   ::  single-server direct proxy (existing behavior)
@@ -1244,6 +1255,33 @@
       `this
     `this
   ::
+  ::  retry-timeout: a 401 was deferred ~30s ago and no refresh
+  ::  fact arrived. Finish the deferred response with a 401 so the
+  ::  client doesn't hang.
+  ::
+      [%retry-timeout @ ~]
+    =/  wire-id=@t  i.t.wire
+    ?.  ?=([%behn %wake *] sign)  `this
+    =/  ctx=(unit [pid=@tas request=request:http])
+      (~(get by retry-context) wire-id)
+    ?~  ctx  `this
+    =/  eid=(unit @ta)  (~(get by pending) wire-id)
+    ?~  eid
+      =.  retry-context  (~(del by retry-context) wire-id)
+      `this
+    ~&  [%mcp-proxy %retry-timeout wire-id pid.u.ctx]
+    =.  retry-context  (~(del by retry-context) wire-id)
+    =.  pending  (~(del by pending) wire-id)
+    =.  wrap-set  (~(del by wrap-set) wire-id)
+    =/  body=(unit octs)
+      `(as-octs:mimes:html '{"error":"upstream returned 401 and refresh did not complete in time"}')
+    =/  =path  /http-response/[u.eid]
+    :_  this
+    :~  [%give %fact ~[path] %http-response-header !>(`response-header:http`[401 ~[cors ['content-type' 'application/json']]])]
+        [%give %fact ~[path] %http-response-data !>(body)]
+        [%give %kick ~[path] ~]
+    ==
+  ::
       [%iris %prime @ ~]
     ::  proxy upstream tools/list prime response — mirrors the
     ::  spec-fetch path but stores into proxy-tools-cache instead
@@ -1383,6 +1421,35 @@
     ?~  eid
       ~&  [%mcp-proxy %no-pending wire-id]
       `this
+    ::  if iris failed before producing a response, fall through to
+    ::  the existing 502 path. Otherwise read status; on 401 with a
+    ::  retry-eligible wire we defer the response and trigger
+    ::  %force-refresh on %oauth.
+    ::
+    =/  retry-ctx=(unit [pid=@tas request=request:http])
+      (~(get by retry-context) wire-id)
+    =/  is-retry=?  (~(has in retried-wires) wire-id)
+    =/  status=@ud
+      ?.  ?=([%iris %http-response *] sign)  0
+      ?.  ?=(%finished -.client-response.sign)  0
+      status-code.response-header.client-response.sign
+    ?:  ?&  =(401 status)
+            ?=(^ retry-ctx)
+            !is-retry
+        ==
+      ::  defer: don't send terminal cards. fire force-refresh +
+      ::  giveup timer; the on-agent grants handler will replay or
+      ::  fail this stash when the refresh resolves.
+      ::
+      ~&  [%mcp-proxy %defer-401 wire-id pid.u.retry-ctx]
+      :_  this
+      :~  [%pass /oauth-refresh/[pid.u.retry-ctx] %agent [our.bowl %oauth] %poke %oauth-action !>(`action:oauth`[%force-refresh pid.u.retry-ctx])]
+          [%pass /retry-timeout/[wire-id] %arvo %b %wait (add now.bowl ~s30)]
+      ==
+    ::  not deferring. clean up retry tracking and fall through.
+    ::
+    =.  retry-context  (~(del by retry-context) wire-id)
+    =.  retried-wires  (~(del in retried-wires) wire-id)
     =.  pending  (~(del by pending) wire-id)
     =/  client-id=(unit json)  (~(get by wrap-set) wire-id)
     =/  needs-wrap=?  ?=(^ client-id)
@@ -1398,26 +1465,17 @@
       %-  give-http  :^  u.eid  502
       ~[cors ['content-type' 'application/json']]
       (some (as-octs:mimes:html '{"error":"upstream in progress"}'))
-    ::  for openapi calls, wrap the REST response in MCP format
+    ::  for openapi calls, wrap the REST response in MCP format.
+    ::  401-driven token refresh is handled before this point via the
+    ::  retry-context / on-agent /grants subscription, so by the time
+    ::  we reach here we either (a) succeeded, (b) failed for some
+    ::  non-401 reason, or (c) failed twice through 401 → finish.
+    ::
     ?:  needs-wrap
       =/  body-text=@t
         ?~  full-file.resp  ''
         `@t`q.data.u.full-file.resp
       =/  is-error=?  (gte status-code.response-header.resp 400)
-      ::  on 401, trigger a token refresh for next call
-      ::  on 401, trigger force-refresh for the oauth provider (fire-and-forget)
-      ::  next call will use the refreshed token
-      =/  refresh-cards=(list card)
-        ?.  =(401 status-code.response-header.resp)  ~
-        ::  find which server had this wire and get its oauth provider
-        =/  srv-list=(list [server-id:mcp-proxy mcp-server:mcp-proxy])
-          %+  skim  ~(tap by servers)
-          |=([* s=mcp-server:mcp-proxy] ?=(^ oauth-provider.s))
-        %+  murn  srv-list
-        |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
-        ?~  oauth-provider.srv  ~
-        %-  some
-        [%pass /oauth-refresh/[u.oauth-provider.srv] %agent [our.bowl %oauth] %poke %oauth-action !>(`action:oauth`[%force-refresh u.oauth-provider.srv])]
       =/  mcp-resp=@t
         %-  en:json:html
         %-  pairs:enjs:format
@@ -1437,12 +1495,10 @@
       =/  bod=(unit octs)  `(as-octs:mimes:html mcp-resp)
       :_  this
       =/  =path  /http-response/[u.eid]
-      =/  http-cards=(list card)
-        :~  [%give %fact ~[path] %http-response-header !>(`response-header:http`[200 resp-headers])]
-            [%give %fact ~[path] %http-response-data !>(bod)]
-            [%give %kick ~[path] ~]
-        ==
-      (weld http-cards refresh-cards)
+      :~  [%give %fact ~[path] %http-response-header !>(`response-header:http`[200 resp-headers])]
+          [%give %fact ~[path] %http-response-data !>(bod)]
+          [%give %kick ~[path] ~]
+      ==
     ::  for proxy calls, forward upstream response as-is
     =/  resp-headers=(list [key=@t value=@t])
       %+  weld  ~[cors ['access-control-expose-headers' 'Mcp-Session-Id']]
@@ -1560,7 +1616,131 @@
   ==
 ::
 ++  on-leave  on-leave:def
-++  on-agent  on-agent:def
+::
+::  on-agent: respond to %oauth-update facts on /oauth/grants. when a
+::  grant is added or refreshed, drain retry-context for that provider
+::  by reissuing each stashed iris request with the rotated bearer.
+::
+++  on-agent
+  |=  [=wire =sign:agent:gall]
+  ^-  (quip card _this)
+  |^
+  ?+    wire  (on-agent:def wire sign)
+      [%oauth %grants ~]
+    ?+  -.sign  (on-agent:def wire sign)
+        %watch-ack
+      ?~  p.sign  `this
+      ~&  [%mcp-proxy %oauth-watch-nack u.p.sign]
+      `this
+    ::
+        %kick
+      :_  this
+      ~[[%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]]
+    ::
+        %fact
+      ?.  =(%oauth-update p.cage.sign)  `this
+      =/  upd  !<(update:oauth q.cage.sign)
+      ?+    -.upd  `this
+          %grant-added       (drain-retries-for provider-id.upd)
+          %grant-refreshed   (drain-retries-for provider-id.upd)
+          %token-expired     (fail-retries-for provider-id.upd)
+      ==
+    ==
+  ==
+  ::
+  ::  drain-retries-for: replay every stashed iris request whose pid
+  ::  matches. Mints a fresh wire-id per retry, swaps the
+  ::  authorization header for the new bearer, marks the new wire as
+  ::  a retry so a second 401 finishes rather than loops.
+  ::
+  ++  drain-retries-for
+    |=  pid=@tas
+    ^-  (quip card _this)
+    =/  matches=(list [@t [pid=@tas request=request:http]])
+      %+  skim  ~(tap by retry-context)
+      |=  [* ctx=[pid=@tas request=request:http]]
+      =(pid pid.ctx)
+    ?:  =(~ matches)  `this
+    =/  fresh-hdr=(unit [key=@t value=@t])
+      (get-oauth-header `pid our.bowl now.bowl)
+    ?~  fresh-hdr
+      (fail-retries-for pid)
+    ::  thread (cards, retry-context, retried-wires, pending,
+    ::  wrap-set, entropy) through each match. roll's accumulator is
+    ::  the only thing that propagates between iterations, so bundle.
+    ::
+    =/  init=[cards=(list card) ctx=_retry-context retried=_retried-wires pend=_pending wrap=_wrap-set seed=@uv]
+      [~ retry-context retried-wires pending wrap-set `@uv`eny.bowl]
+    =/  acc=_init
+      %+  roll  matches
+      |=  $:  [old-wid=@t pair=[pid=@tas request=request:http]]
+              a=_init
+          ==
+      ^-  _init
+      =/  new-wid=@t  (scot %uv (mix seed.a (shax (cat 3 (jam old-wid) seed.a))))
+      =/  new-headers=(list [key=@t value=@t])
+        %+  snoc
+          %+  skip  header-list.request.pair
+          |=  [k=@t *]
+          =((cass (trip k)) "authorization")
+        u.fresh-hdr
+      =/  new-req=request:http
+        [method.request.pair url.request.pair new-headers body.request.pair]
+      =/  eid=(unit @ta)  (~(get by pend.a) old-wid)
+      ?~  eid  a
+      =/  client-id=(unit json)  (~(get by wrap.a) old-wid)
+      =/  pend2=_pending  (~(del by (~(put by pend.a) new-wid u.eid)) old-wid)
+      =/  wrap2=_wrap-set
+        ?~  client-id  wrap.a
+        (~(del by (~(put by wrap.a) new-wid u.client-id)) old-wid)
+      =/  ctx2=_retry-context  (~(del by ctx.a) old-wid)
+      =/  retried2=_retried-wires  (~(put in retried.a) new-wid)
+      :*  (snoc cards.a [%pass /iris/proxy/[new-wid] %arvo %i %request new-req *outbound-config:iris])
+          ctx2  retried2  pend2  wrap2  +(seed.a)
+      ==
+    =.  retry-context  ctx.acc
+    =.  retried-wires  retried.acc
+    =.  pending        pend.acc
+    =.  wrap-set       wrap.acc
+    [cards.acc this]
+  ::
+  ::  fail-retries-for: drop stashed retries for pid and finish each
+  ::  pending response with a 401 telling the LLM the auth is bad.
+  ::
+  ++  fail-retries-for
+    |=  pid=@tas
+    ^-  (quip card _this)
+    =/  matches=(list [@t [pid=@tas request=request:http]])
+      %+  skim  ~(tap by retry-context)
+      |=  [* ctx=[pid=@tas request=request:http]]
+      =(pid pid.ctx)
+    ?:  =(~ matches)  `this
+    =/  init=[cards=(list card) ctx=_retry-context pend=_pending wrap=_wrap-set]
+      [~ retry-context pending wrap-set]
+    =/  acc=_init
+      %+  roll  matches
+      |=  [[wid=@t *] a=_init]
+      ^-  _init
+      =/  eid=(unit @ta)  (~(get by pend.a) wid)
+      ?~  eid  a
+      =/  body=(unit octs)
+        `(as-octs:mimes:html '{"error":"upstream returned 401 and refresh failed"}')
+      =/  =path  /http-response/[u.eid]
+      =/  new-cards=(list card)
+        :~  [%give %fact ~[path] %http-response-header !>(`response-header:http`[401 ~[cors ['content-type' 'application/json']]])]
+            [%give %fact ~[path] %http-response-data !>(body)]
+            [%give %kick ~[path] ~]
+        ==
+      :*  (weld cards.a new-cards)
+          (~(del by ctx.a) wid)
+          (~(del by pend.a) wid)
+          (~(del by wrap.a) wid)
+      ==
+    =.  retry-context  ctx.acc
+    =.  pending        pend.acc
+    =.  wrap-set       wrap.acc
+    [cards.acc this]
+  --
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
