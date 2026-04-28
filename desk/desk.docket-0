@@ -1,0 +1,9 @@
+:~  title+'mcp'
+    info+'mcp server, relay and oauth cache'
+    color+0x7c.3aed
+    version+[0 2 0]
+    website+''
+    license+'MIT'
+    base+'mcp'
+    site+/
+==
