@@ -766,12 +766,46 @@
         (fall a params)
       ::  build API URL with path params and query string
       =/  path-params=(set @t)  (extract-path-params path.u.op)
+      =/  base-url=@t
+        =/  spec-base=@t  (get-spec-base-url u.spec)
+        =/  override=@t   url.u.srv
+        ::  if the spec only declares a relative path (Swagger 2.0
+        ::  basePath without a host), append it to the operator's
+        ::  upstream URL. Otherwise prefer the operator override; fall
+        ::  back to the spec's full URL.
+        ::
+        =/  spec-base-t=tape  (trip spec-base)
+        =/  spec-is-relative=?
+          ?&  !=(~ spec-base-t)
+              =('/' i.spec-base-t)
+          ==
+        ?:  ?&(!=('' override) spec-is-relative)
+          =/  override-t=tape  (trip override)
+          =/  trimmed=tape
+            ?:  &(!=(~ override-t) =('/' (rear override-t)))
+              (snip override-t)
+            override-t
+          (cat 3 (crip trimmed) spec-base)
+        ?:  !=('' override)  override
+        spec-base
+      ~&  [%mcp-proxy %base-url base-url]
+      ::  no base URL means we'd issue a relative-URL request to iris
+      ::  and crash the agent. Return a structured error instead so
+      ::  the LLM gets an actionable message.
+      ::
+      ?:  =('' base-url)
+        ~&  [%mcp-proxy %no-base-url sid]
+        :_  this
+        %-  give-http  :^  eyre-id  400
+        ~[cors ['content-type' 'application/json']]
+        :-  ~
+        %-  as-octs:mimes:html
+        %+  rap  3
+        :~  '{"error":"upstream base URL not configured for '
+            (scot %tas sid)
+            '. Set the upstream URL in mcp-proxy or include servers[0].url in the OpenAPI spec."}'
+        ==
       =/  api-url=@t
-        ::  use server URL if set, otherwise derive from spec
-        =/  base-url=@t
-          ?:  !=('' url.u.srv)  url.u.srv
-          (get-spec-base-url u.spec)
-        ~&  [%mcp-proxy %base-url base-url]
         =/  base-with-path=@t  (build-api-url base-url path.u.op args)
         ~&  [%mcp-proxy %base-with-path base-with-path]
         =/  qs=@t  (build-all-args-query args path-params)
@@ -2045,7 +2079,35 @@
     ::  Google Discovery: use baseUrl or rootUrl
     =/  base=@t  (get-json-string spec 'baseUrl')
     ?:(=('' base) (get-json-string spec 'rootUrl') base)
-  ::  OpenAPI: use servers[0].url
+  ::  Swagger 2.0: compose scheme+host+basePath when available;
+  ::  fall back to just basePath (a path the caller will append to
+  ::  the operator-supplied upstream URL).
+  ::
+  =/  swagger-version=@t  (get-json-string spec 'swagger')
+  ?:  !=('' swagger-version)
+    =/  base-path=@t   (get-json-string spec 'basePath')
+    =/  host=@t        (get-json-string spec 'host')
+    ?:  =('' host)  base-path
+    =/  schemes=json   (get-json-field spec 'schemes')
+    =/  scheme=@t
+      ?.  ?=(%a -.schemes)  'https'
+      ?~  p.schemes        'https'
+      ::  prefer https if present, else first scheme listed
+      =/  https-found=?
+        |-  ^-  ?
+        ?~  p.schemes  %.n
+        ?:  ?&  ?=(%s -.i.p.schemes)
+                =('https' p.i.p.schemes)
+            ==
+          %.y
+        $(p.schemes t.p.schemes)
+      ?:  https-found  'https'
+      ?.  ?=(%s -.i.p.schemes)  'https'
+      p.i.p.schemes
+    %+  rap  3
+    :~  scheme  '://'  host  base-path
+    ==
+  ::  OpenAPI 3.0: use servers[0].url
   =/  servers=json  (get-json-field spec 'servers')
   ?.  ?=(%a -.servers)  ''
   ?~  p.servers  ''
