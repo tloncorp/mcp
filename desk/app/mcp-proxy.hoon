@@ -2094,13 +2094,14 @@
       ?~  p.schemes        'https'
       ::  prefer https if present, else first scheme listed
       =/  https-found=?
+        =/  ss=(list json)  p.schemes
         |-  ^-  ?
-        ?~  p.schemes  %.n
-        ?:  ?&  ?=(%s -.i.p.schemes)
-                =('https' p.i.p.schemes)
+        ?~  ss  %.n
+        ?:  ?&  ?=(%s -.i.ss)
+                =('https' p.i.ss)
             ==
           %.y
-        $(p.schemes t.p.schemes)
+        $(ss t.ss)
       ?:  https-found  'https'
       ?.  ?=(%s -.i.p.schemes)  'https'
       p.i.p.schemes
