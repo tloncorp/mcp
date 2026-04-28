@@ -776,13 +776,13 @@
         ::
         =/  spec-base-t=tape  (trip spec-base)
         =/  spec-is-relative=?
-          ?&  !=(~ spec-base-t)
-              =('/' i.spec-base-t)
-          ==
+          ?~  spec-base-t  %.n
+          =('/' i.spec-base-t)
         ?:  ?&(!=('' override) spec-is-relative)
           =/  override-t=tape  (trip override)
           =/  trimmed=tape
-            ?:  &(!=(~ override-t) =('/' (rear override-t)))
+            ?~  override-t  override-t
+            ?:  =('/' (rear override-t))
               (snip override-t)
             override-t
           (cat 3 (crip trimmed) spec-base)
@@ -2094,14 +2094,11 @@
       ?~  p.schemes        'https'
       ::  prefer https if present, else first scheme listed
       =/  https-found=?
-        =/  ss=(list json)  p.schemes
-        |-  ^-  ?
-        ?~  ss  %.n
-        ?:  ?&  ?=(%s -.i.ss)
-                =('https' p.i.ss)
-            ==
-          %.y
-        $(ss t.ss)
+        %+  lien  p.schemes
+        |=  s=json
+        ?&  ?=(%s -.s)
+            =('https' p.s)
+        ==
       ?:  https-found  'https'
       ?.  ?=(%s -.i.p.schemes)  'https'
       p.i.p.schemes
