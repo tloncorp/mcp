@@ -114,6 +114,10 @@
       [%remote-connect id=provider-id return-to=@t]
       [%set-relay-url url=(unit @t)]
       [%receive-grant =provider-id =grant]
+      [%show-providers ~]
+      [%show-grants ~]
+      [%show-relay ~]
+      [%show-config ~]
   ==
 ::
 +$  update

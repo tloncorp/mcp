@@ -149,13 +149,13 @@
       ::  trigger immediate token refresh (called by %mcp-proxy on 401)
       =/  gra=(unit grant:oauth)  (~(get by grants) id.act)
       ?~  gra
-        ~&  [%oauth %force-refresh-skip id.act %no-grant]
+        ~&  >>  [%oauth %force-refresh-skip id.act %no-grant]
         `this
       ?~  refresh-token.u.gra
-        ~&  [%oauth %force-refresh-skip id.act %no-refresh-token]
+        ~&  >>  [%oauth %force-refresh-skip id.act %no-refresh-token]
         `this
       ?:  (~(has in refreshing) id.act)
-        ~&  [%oauth %force-refresh-skip id.act %already-refreshing]
+        ~&  >>  [%oauth %force-refresh-skip id.act %already-refreshing]
         `this
       =/  cfg=(unit provider-config:oauth)  (~(get by providers) id.act)
       ::  no local provider-config: managed grant from the relay,
@@ -163,10 +163,10 @@
       ::
       ?~  cfg
         ?~  relay-url
-          ~&  [%oauth %force-refresh-skip id.act %no-config-no-relay]
+          ~&  >>  [%oauth %force-refresh-skip id.act %no-config-no-relay]
           `this
         =.  refreshing  (~(put in refreshing) id.act)
-        ~&  [%oauth %force-refresh-relay id.act]
+        ~&  >  [%oauth %force-refresh-relay id.act]
         =/  body=@t  (build-relay-refresh-body id.act u.refresh-token.u.gra)
         =/  url=@t   (rap 3 ~[u.relay-url '/v1/refresh'])
         :_  this
@@ -183,7 +183,7 @@
       =.  refreshing  (~(put in refreshing) id.act)
       =/  body=@t
         (build-refresh-body u.cfg u.gra)
-      ~&  [%oauth %force-refresh id.act]
+      ~&  >  [%oauth %force-refresh id.act]
       :_  this
       :~  :*  %pass  /iris/token-refresh/[id.act]
               %arvo  %i  %request
@@ -268,6 +268,54 @@
         :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-added provider-id.act final])]
         ==
       [(weld timer-cards notify) this]
+    ::
+    ::  dojo introspection: print configuration to dojo. these are
+    ::  read-only; they emit ~& side effects and return no cards.
+    ::  invoke with `:oauth &oauth-action [%show-providers ~]` etc.
+    ::
+        %show-providers
+      ~&  >  %oauth-providers
+      =/  ps=(list [pid=provider-id:oauth cfg=provider-config:oauth])
+        ~(tap by providers)
+      |-  ^-  (quip card _this)
+      ?~  ps  `this
+      =/  pid=provider-id:oauth        pid.i.ps
+      =/  cfg=provider-config:oauth    cfg.i.ps
+      ~&  :*  pid
+              auth-url=auth-url.cfg
+              token-url=token-url.cfg
+              client-id=client-id.cfg
+              scopes=scopes.cfg
+              token-auth=token-auth.cfg
+          ==
+      $(ps t.ps)
+    ::
+        %show-grants
+      ~&  >  %oauth-grants
+      =/  gs=(list [pid=provider-id:oauth gra=grant:oauth])
+        ~(tap by grants)
+      |-  ^-  (quip card _this)
+      ?~  gs  `this
+      =/  pid=provider-id:oauth  pid.i.gs
+      =/  gra=grant:oauth        gra.i.gs
+      ~&  :*  pid
+              token-type=token-type.gra
+              scopes=scopes.gra
+              has-refresh=?=(^ refresh-token.gra)
+              expires-at=expires-at.gra
+          ==
+      $(gs t.gs)
+    ::
+        %show-relay
+      ~&  [%oauth-relay-url relay-url]
+      `this
+    ::
+        %show-config
+      ~&  >  %oauth-config-dump
+      ~&  relay-url=relay-url
+      ~&  provider-count=~(wyt by providers)
+      ~&  grant-count=~(wyt by grants)
+      `this
     ==
   ::
   ::  HTTP request handler
@@ -289,35 +337,9 @@
         %+  give-simple-payload:app:server  eyre-id
         (login-redirect:gen:server request.req)
       (handle-api eyre-id req t.t.site)
-    ::  /oauth or /oauth/ — redirect to main MCP proxy UI
-    ::
-    ?:  ?|  ?=([%oauth ~] site)
-            ?=([%oauth %$ ~] site)
-        ==
-      :_  this
-      (give-http eyre-id 307 ~[['location' '/apps/mcp/']] ~)
-    ::  /oauth/manage — old direct UI (kept for backward compat)
-    ?:  ?=([%oauth %manage ~] site)
-      ?.  authenticated.req
-        :_  this
-        %+  give-simple-payload:app:server  eyre-id
-        (login-redirect:gen:server request.req)
-      :_  this
-      (give-http eyre-id 200 ~[['content-type' 'text/html']] (some (as-octs:mimes:html index-html)))
-    ::  /oauth/css/app.css
-    ::
-    ?:  ?=([%oauth %css %app ~] site)
-      :_  this
-      (give-http eyre-id 200 ~[['content-type' 'text/css']] (some (as-octs:mimes:html app-css)))
-    ::  /oauth/js/*
-    ::
-    ?:  ?=([%oauth %js %app ~] site)
-      :_  this
-      (give-http eyre-id 200 ~[['content-type' 'application/javascript']] (some (as-octs:mimes:html app-js)))
-    ?:  ?=([%oauth %js %api ~] site)
-      :_  this
-      (give-http eyre-id 200 ~[['content-type' 'application/javascript']] (some (as-octs:mimes:html api-js)))
-    ::  404
+    ::  no human-facing UI here — the user surface is on horizon/tlonbot,
+    ::  the operator surface is the dojo show-* pokes (%show-providers,
+    ::  %show-grants, %show-relay, %show-config).
     ::
     :_  this
     (give-http eyre-id 404 ~[['content-type' 'text/plain']] (some (as-octs:mimes:html 'not found')))
@@ -557,7 +579,7 @@
     =.  remote-pending  (~(del by remote-pending) wire-id)
     ?~  pnd  `this
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%oauth %relay-start-failed %bad-sign]
+      ~&  >>>  [%oauth %relay-start-failed %bad-sign]
       :_  this
       (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable"}')))
     =/  resp=client-response:iris  client-response.sign
@@ -565,7 +587,7 @@
       :_  this
       (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay unreachable"}')))
     ?.  =(200 status-code.response-header.resp)
-      ~&  [%oauth %relay-start-failed %status status-code.response-header.resp]
+      ~&  >>>  [%oauth %relay-start-failed %status status-code.response-header.resp]
       :_  this
       (give-http eyre-id.u.pnd 502 ~[['content-type' 'application/json']] (some (as-octs:mimes:html '{"error":"relay rejected"}')))
     ?~  full-file.resp
@@ -597,35 +619,35 @@
       [%iris %token-exchange @ ~]
     =/  st=@t  i.t.t.wire
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%oauth %token-exchange-failed st %bad-sign]
+      ~&  >>>  [%oauth %token-exchange-failed st %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%oauth %token-exchange-failed st %not-finished]
+      ~&  >>>  [%oauth %token-exchange-failed st %not-finished]
       `this
     ?.  =(200 status-code.response-header.resp)
-      ~&  [%oauth %token-exchange-failed st %status status-code.response-header.resp]
+      ~&  >>>  [%oauth %token-exchange-failed st %status status-code.response-header.resp]
       =.  pending  (~(del by pending) st)
       `this
     ?~  full-file.resp
-      ~&  [%oauth %token-exchange-failed st %no-body]
+      ~&  >>>  [%oauth %token-exchange-failed st %no-body]
       =.  pending  (~(del by pending) st)
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
-      ~&  [%oauth %token-exchange-failed st %bad-json]
+      ~&  >>>  [%oauth %token-exchange-failed st %bad-json]
       =.  pending  (~(del by pending) st)
       `this
     ::  parse token response
     ::
     =/  pend=(unit pending-auth:oauth)  (~(get by pending) st)
     ?~  pend
-      ~&  [%oauth %token-exchange-failed st %no-pending]
+      ~&  >>>  [%oauth %token-exchange-failed st %no-pending]
       `this
     =/  gra=(unit grant:oauth)  (parse-token-response u.jon provider-id.u.pend now.bowl)
     ?~  gra
-      ~&  [%oauth %token-exchange-failed st %parse-failed]
+      ~&  >>>  [%oauth %token-exchange-failed st %parse-failed]
       =.  pending  (~(del by pending) st)
       `this
     ::  store grant, clear pending
@@ -653,11 +675,11 @@
     =/  pid=provider-id:oauth  i.t.t.wire
     =.  refreshing  (~(del in refreshing) pid)
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%oauth %refresh-failed pid %bad-sign]
+      ~&  >>>  [%oauth %refresh-failed pid %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%oauth %refresh-failed pid %not-finished]
+      ~&  >>>  [%oauth %refresh-failed pid %not-finished]
       `this
     ?.  =(200 status-code.response-header.resp)
       ::  check for invalid_grant (requires re-auth, not retry)
@@ -666,23 +688,23 @@
         `@t`q.data.u.full-file.resp
       =/  is-invalid=?
         !=(~ (find "invalid_grant" (trip err-body)))
-      ~&  [%oauth %refresh-failed pid %status status-code.response-header.resp ?:(is-invalid %invalid-grant %other)]
+      ~&  >>>  [%oauth %refresh-failed pid %status status-code.response-header.resp ?:(is-invalid %invalid-grant %other)]
       ::  remove grant if invalid_grant (forces re-auth)
       =?  grants  is-invalid  (~(del by grants) pid)
       :_  this
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
       ==
     ?~  full-file.resp
-      ~&  [%oauth %refresh-failed pid %no-body]
+      ~&  >>>  [%oauth %refresh-failed pid %no-body]
       `this
     =/  body=@t  `@t`q.data.u.full-file.resp
     =/  jon=(unit json)  (de:json:html body)
     ?~  jon
-      ~&  [%oauth %refresh-failed pid %bad-json]
+      ~&  >>>  [%oauth %refresh-failed pid %bad-json]
       `this
     =/  gra=(unit grant:oauth)  (parse-token-response u.jon pid now.bowl)
     ?~  gra
-      ~&  [%oauth %refresh-failed pid %parse-failed]
+      ~&  >>>  [%oauth %refresh-failed pid %parse-failed]
       :_  this
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
       ==
@@ -693,7 +715,7 @@
       ?:  &(?=(^ old) ?=(~ refresh-token.u.gra))
         u.gra(refresh-token refresh-token.u.old)
       u.gra
-    ~&  [%oauth %grant-refreshed pid expires-at.final]
+    ~&  >  [%oauth %grant-refreshed pid expires-at.final]
     =.  grants  (~(put by grants) pid final)
     =/  cards=(list card)
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%grant-refreshed pid final])]
@@ -725,22 +747,24 @@
     =/  pid=provider-id:oauth  i.t.t.wire
     =.  refreshing  (~(del in refreshing) pid)
     ?.  ?=([%iris %http-response *] sign)
-      ~&  [%oauth %relay-refresh-failed pid %bad-sign]
+      ~&  >>>  [%oauth %relay-refresh-failed pid %bad-sign]
       `this
     =/  resp=client-response:iris  client-response.sign
     ?.  ?=(%finished -.resp)
-      ~&  [%oauth %relay-refresh-failed pid %not-finished]
+      ~&  >>>  [%oauth %relay-refresh-failed pid %not-finished]
       `this
     =/  status=@ud  status-code.response-header.resp
     ?.  &((gte status 200) (lth status 300))
       =/  err-body=@t
         ?~  full-file.resp  ''
-        `@t`q.data.u.full-file.resp
-      ~&  [%oauth %relay-refresh-failed pid %status status err-body]
+        =/  b=@t  `@t`q.data.u.full-file.resp
+        ?:  (gth (met 3 b) 500)  (cat 3 (cut 3 [0 500] b) '...[truncated]')
+        b
+      ~&  >>>  [%oauth %relay-refresh-failed pid %status status err-body]
       :_  this
       :~  [%give %fact [/grants]~ %oauth-update !>(`update:oauth`[%token-expired pid])]
       ==
-    ~&  [%oauth %relay-refresh-ok pid]
+    ~&  >  [%oauth %relay-refresh-ok pid]
     `this
   ::
   ::  refresh timer
@@ -761,7 +785,7 @@
     ?:  ?&  ?=(^ expires-at.u.gra)
             (gth u.expires-at.u.gra (add now.bowl ~m10))
         ==
-      ~&  [%oauth %skip-stale-refresh-timer pid]
+      ~&  >>  [%oauth %skip-stale-refresh-timer pid]
       `this
     ?~  refresh-token.u.gra
       :_  this
@@ -1322,234 +1346,4 @@
   </html>
   '''
 ::
-++  index-html
-  ^-  @t
-  '''
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OAuth Manager</title>
-    <link rel="stylesheet" href="/oauth/css/app.css">
-  </head>
-  <body>
-    <div id="app">
-      <header>
-        <h1>OAuth Manager</h1>
-        <p class="subtitle">Manage OAuth provider connections for your ship</p>
-      </header>
-      <main>
-        <section id="add-provider">
-          <h2>Add Provider</h2>
-          <form id="add-form">
-            <div class="form-row">
-              <label>ID <input type="text" name="id" placeholder="github" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" required></label>
-              <label>Client ID <input type="text" name="client-id" placeholder="your-client-id" required></label>
-            </div>
-            <div class="form-row">
-              <label>Client Secret <input type="password" name="client-secret" placeholder="your-client-secret" required></label>
-            </div>
-            <div class="form-row">
-              <label>Auth URL <input type="url" name="auth-url" placeholder="https://github.com/login/oauth/authorize" required></label>
-              <label>Token URL <input type="url" name="token-url" placeholder="https://github.com/login/oauth/access_token" required></label>
-            </div>
-            <div class="form-row">
-              <label>Revoke URL (optional) <input type="url" name="revoke-url" placeholder=""></label>
-              <label>Redirect URI <input type="url" name="redirect-uri" placeholder="https://yourship.tlon.network/oauth/callback" required></label>
-            </div>
-            <div class="form-row">
-              <label>Scopes <input type="text" name="scopes" placeholder="repo user"></label>
-            </div>
-            <div class="form-actions">
-              <button type="submit">Add Provider</button>
-            </div>
-          </form>
-        </section>
-        <section id="providers-section">
-          <h2>Providers</h2>
-          <div id="providers"></div>
-        </section>
-      </main>
-    </div>
-    <script src="/oauth/js/api.js"></script>
-    <script src="/oauth/js/app.js"></script>
-  </body>
-  </html>
-  '''
-::
-++  app-css
-  ^-  @t
-  '''
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 2rem; max-width: 720px; margin: 0 auto; }
-  header { margin-bottom: 2rem; }
-  h1 { font-size: 1.5rem; font-weight: 600; }
-  h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
-  .subtitle { color: #666; font-size: 0.85rem; margin-top: 0.25rem; }
-  section { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
-  .form-row { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; }
-  .form-row label { flex: 1; display: flex; flex-direction: column; font-size: 0.8rem; color: #555; gap: 0.25rem; }
-  input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
-  button { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; background: #1a1a1a; color: #fff; }
-  button:hover { background: #333; }
-  button.secondary { background: #e0e0e0; color: #1a1a1a; }
-  button.danger { background: #d32f2f; color: #fff; }
-  button.danger:hover { background: #b71c1c; }
-  button.success { background: #2e7d32; color: #fff; }
-  button.success:hover { background: #1b5e20; }
-  .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-  .provider-card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
-  .provider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-  .provider-name { font-weight: 600; }
-  .provider-url { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
-  .provider-actions { display: flex; gap: 0.5rem; }
-  .badge { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 99px; font-weight: 500; }
-  .badge.connected { background: #e8f5e9; color: #2e7d32; }
-  .badge.disconnected { background: #fce4ec; color: #c62828; }
-  .empty { color: #999; font-size: 0.85rem; text-align: center; padding: 2rem; }
-  .toast { position: fixed; bottom: 1rem; right: 1rem; background: #1a1a1a; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; opacity: 0; transition: opacity 0.3s; }
-  .toast.show { opacity: 1; }
-  '''
-::
-++  app-js
-  ^-  @t
-  '''
-  var OAuthApp = {
-    providers: [],
-    init: function() {
-      this.loadProviders();
-      this.bindEvents();
-    },
-    loadProviders: function() {
-      var self = this;
-      OAuthAPI.getProviders().then(function(data) {
-        self.providers = data.providers || [];
-        self.render();
-      }).catch(function(e) {
-        console.error('Failed to load providers:', e);
-        self.providers = [];
-        self.render();
-      });
-    },
-    bindEvents: function() {
-      var self = this;
-      document.getElementById('add-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var f = e.target;
-        var data = {
-          action: 'add-provider',
-          id: f.elements['id'].value.trim().toLowerCase(),
-          'auth-url': f.elements['auth-url'].value.trim(),
-          'token-url': f.elements['token-url'].value.trim(),
-          'revoke-url': f.elements['revoke-url'].value.trim() || null,
-          'client-id': f.elements['client-id'].value.trim(),
-          'client-secret': f.elements['client-secret'].value.trim(),
-          'redirect-uri': f.elements['redirect-uri'].value.trim(),
-          scopes: f.elements['scopes'].value.trim()
-        };
-        OAuthAPI.post(data).then(function() {
-          f.reset();
-          self.loadProviders();
-          self.toast('Provider added');
-        }).catch(function(e) { alert('Failed: ' + e.message); });
-      });
-    },
-    connect: function(id) {
-      var self = this;
-      OAuthAPI.post({ action: 'connect', id: id }).then(function(data) {
-        if (data && data.url) {
-          window.location.href = data.url;
-        } else {
-          self.toast('Connect initiated');
-          self.loadProviders();
-        }
-      }).catch(function(e) { alert('Connect failed: ' + e.message); });
-    },
-    disconnect: function(id) {
-      var self = this;
-      OAuthAPI.post({ action: 'disconnect', id: id }).then(function() {
-        self.loadProviders();
-        self.toast('Disconnected');
-      }).catch(function(e) { alert('Failed: ' + e.message); });
-    },
-    remove: function(id) {
-      if (!confirm('Remove this provider?')) return;
-      var self = this;
-      OAuthAPI.post({ action: 'remove-provider', id: id }).then(function() {
-        self.loadProviders();
-        self.toast('Provider removed');
-      }).catch(function(e) { alert('Failed: ' + e.message); });
-    },
-    render: function() {
-      var container = document.getElementById('providers');
-      if (this.providers.length === 0) {
-        container.innerHTML = '<div class="empty">No providers configured. Add one above.</div>';
-        return;
-      }
-      var html = '';
-      for (var i = 0; i < this.providers.length; i++) {
-        var p = this.providers[i];
-        var status = p.hasGrant ? 'connected' : 'disconnected';
-        html += '<div class="provider-card">' +
-          '<div class="provider-header">' +
-            '<span class="provider-name">' + this.esc(p.id) + '</span>' +
-            '<span class="badge ' + status + '">' + status + '</span>' +
-          '</div>' +
-          '<div class="provider-url">' + this.esc(p.authUrl) + '</div>' +
-          '<div class="provider-url">Scopes: ' + this.esc(p.scopes) + '</div>' +
-          '<div class="provider-actions">' +
-            (p.hasGrant
-              ? '<button class="danger" onclick="OAuthApp.disconnect(\'' + p.id + '\')">Disconnect</button>'
-              : '<button class="success" onclick="OAuthApp.connect(\'' + p.id + '\')">Connect</button>') +
-            '<button class="secondary" onclick="OAuthApp.remove(\'' + p.id + '\')">Remove</button>' +
-          '</div>' +
-        '</div>';
-      }
-      container.innerHTML = html;
-    },
-    toast: function(msg) {
-      var el = document.getElementById('toast');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'toast';
-        el.className = 'toast';
-        document.body.appendChild(el);
-      }
-      el.textContent = msg;
-      el.classList.add('show');
-      setTimeout(function() { el.classList.remove('show'); }, 2000);
-    },
-    esc: function(s) {
-      if (!s) return '';
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-  };
-  document.addEventListener('DOMContentLoaded', function() { OAuthApp.init(); });
-  '''
-::
-++  api-js
-  ^-  @t
-  '''
-  var OAuthAPI = {
-    base: '/oauth/api',
-    getProviders: function() {
-      return fetch(this.base + '/providers', { credentials: 'same-origin' }).then(function(r) { return r.json(); });
-    },
-    getGrants: function() {
-      return fetch(this.base + '/grants', { credentials: 'same-origin' }).then(function(r) { return r.json(); });
-    },
-    post: function(data) {
-      return fetch(this.base, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      }).then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      });
-    }
-  };
-  '''
 --

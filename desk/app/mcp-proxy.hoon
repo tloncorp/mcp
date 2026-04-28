@@ -1,6 +1,7 @@
 ::  mcp-proxy: proxy for remote MCP servers
 ::
-::    configure remote MCP server endpoints via the web UI.
+::    configure remote MCP server endpoints via dojo pokes
+::    (mcp-proxy-action) or via JSON to /apps/mcp/api.
 ::    point an LLM at /apps/mcp/mcp for an aggregate endpoint
 ::    that combines tools from all configured servers.
 ::    or /apps/mcp/mcp/{server-id} for a single server.
@@ -155,21 +156,10 @@
   =/  prime-cards=(list card)
     %+  prime-proxy-cards  servers.new-state
     [server-order.new-state cookies our.bowl now.bowl sid]
-  ::  clear eyre cache for web UI files on every bump
-  =/  cache-cards=(list card)
-    %+  turn
-      :~  '/apps/mcp'
-          '/apps/mcp/'
-          '/apps/mcp/index.html'
-          '/apps/mcp/css/app.css'
-          '/apps/mcp/js/app.js'
-          '/apps/mcp/js/api.js'
-      ==
-    |=(url=@t [%pass /eyre/cache %arvo %e %set-response url ~])
   ::  re-sync key with mcp-server every load (idempotent)
   =/  sync-cards=(list card)  ~[(sync-server-key-card our.bowl ensured-key)]
   :_  this(state new-state)
-  :(weld eyre-cards spec-cards prime-cards cache-cards sync-cards)
+  :(weld eyre-cards spec-cards prime-cards sync-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -188,20 +178,6 @@
       %handle-http-request
     =+  !<([eyre-id=@ta req=inbound-request:eyre] vase)
     (handle-http eyre-id req)
-  ::
-      %noun
-    ::  clear eyre cache for web UI files
-    =/  urls=(list @t)
-      :~  '/apps/mcp/'
-          '/apps/mcp/index.html'
-          '/apps/mcp/css/app.css'
-          '/apps/mcp/js/app.js'
-          '/apps/mcp/js/api.js'
-      ==
-    ::  noisy on every login-cache invalidation; not useful as a log
-    :_  this
-    %+  turn  urls
-    |=(url=@t [%pass /eyre/cache %arvo %e %set-response url ~])
   ==
   ::
   ++  handle-action

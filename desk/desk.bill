@@ -1,5 +1,4 @@
 :~  %mcp-server
     %mcp-proxy
-    %mcp-fileserver
     %oauth
 ==
