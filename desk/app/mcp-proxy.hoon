@@ -68,7 +68,7 @@
         [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]
     ==
   =/  prime-cards=(list card)
-    (prime-proxy-cards servers server-order cookies our.bowl now.bowl sid)
+    (prime-proxy-cards servers server-order cookies our.bowl now.bowl)
   :_  this
   (weld base prime-cards)
 ::
@@ -151,15 +151,16 @@
         [%'GET' u.schema-url.srv ~[['accept' 'application/json']] ~]
         *outbound-config:iris
     ==
-  ::  re-prime tools/list for proxy upstreams (also non-persisted)
-  ::  so the catalog is warm before any client connects
-  =/  prime-cards=(list card)
-    %+  prime-proxy-cards  servers.new-state
-    [server-order.new-state cookies our.bowl now.bowl sid]
   ::  re-sync key with mcp-server every load (idempotent)
   =/  sync-cards=(list card)  ~[(sync-server-key-card our.bowl ensured-key)]
+  ::  re-prime tools/list for proxy upstreams, including the native
+  ::  self /mcp upstream, so code-mode search has the default Urbit
+  ::  tools before any client connects.
+  =/  prime-cards=(list card)
+    %+  prime-proxy-cards  servers.new-state
+    [server-order.new-state cookies our.bowl now.bowl]
   :_  this(state new-state)
-  :(weld eyre-cards spec-cards prime-cards sync-cards)
+  :(weld eyre-cards sync-cards spec-cards prime-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -2346,8 +2347,9 @@
 ::  upstream so proxy-tools-cache can be primed without waiting for
 ::  the next fan-out. mirrors the openapi spec-fetch in on-load —
 ::  fire-and-forget; the response is handled by the [%iris %prime]
-::  arm in on-arvo. skips skip-id (the self upstream) so we don't
-::  recursively prime ourselves.
+::  arm in on-arvo. The built-in self upstream points at the native
+::  /mcp server, not /apps/mcp/mcp, so it is safe and necessary to
+::  prime it for code-mode search.
 ::
 ++  prime-proxy-cards
   |=  $:  servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
@@ -2355,7 +2357,6 @@
           cookies=(map server-id:mcp-proxy @t)
           our=@p
           now=@da
-          skip-id=@tas
       ==
   ^-  (list card:agent:gall)
   =/  body=@t
@@ -2373,7 +2374,6 @@
   ?~  srv  ~
   ?.  enabled.u.srv  ~
   ?.  =(%proxy mode.u.srv)  ~
-  ?:  =(sid skip-id)  ~
   =/  out-headers=(list [key=@t value=@t])
     %+  weld
       :~  ['content-type' 'application/json']
