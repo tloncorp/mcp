@@ -780,12 +780,9 @@
           =('/' i.spec-base-t)
         ?:  ?&(!=('' override) spec-is-relative)
           =/  override-t=tape  (trip override)
-          =/  trimmed=tape
-            ?~  override-t  override-t
-            ?:  =('/' (rear override-t))
-              (snip override-t)
-            override-t
-          (cat 3 (crip trimmed) spec-base)
+          =?  override-t  &(!=(~ override-t) =('/' (rear override-t)))
+            (snip override-t)
+          (cat 3 (crip override-t) spec-base)
         ?:  !=('' override)  override
         spec-base
       ~&  [%mcp-proxy %base-url base-url]
@@ -2092,16 +2089,24 @@
     =/  scheme=@t
       ?.  ?=(%a -.schemes)  'https'
       ?~  p.schemes        'https'
-      ::  prefer https if present, else first scheme listed
-      =/  https-found=?
-        %+  lien  p.schemes
-        |=  s=json
-        ?&  ?=(%s -.s)
-            =('https' p.s)
-        ==
-      ?:  https-found  'https'
-      ?.  ?=(%s -.i.p.schemes)  'https'
-      p.i.p.schemes
+      ::  pull out the first scheme as the default; then walk t.p.schemes
+      ::  (which keeps its full list type including the empty case) to
+      ::  see if any element prefers 'https' — if so, use it.
+      ::
+      =/  first-scheme=@t
+        ?:  ?=(%s -.i.p.schemes)  p.i.p.schemes
+        'https'
+      ?:  =('https' first-scheme)  'https'
+      =/  has-https=?
+        =/  rest  t.p.schemes
+        |-  ^-  ?
+        ?~  rest  %.n
+        ?:  ?=(%s -.i.rest)
+          ?:  =('https' p.i.rest)  %.y
+          $(rest t.rest)
+        $(rest t.rest)
+      ?:  has-https  'https'
+      first-scheme
     %+  rap  3
     :~  scheme  '://'  host  base-path
     ==
