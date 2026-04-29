@@ -1,5 +1,7 @@
 # Urbit MCP
 
+## A fork of [gwbtc/urbit-mcp](https://github.com/gwbtc/urbit-mcp) by [Groundwire](https://groundwire.io/)
+
 A general-purpose Model Context Protocol interface for Urbit.
 
 The `%mcp` desk ships as a single integrated control plane with three pieces:
