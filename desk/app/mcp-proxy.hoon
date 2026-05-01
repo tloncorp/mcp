@@ -40,6 +40,13 @@
 ::  retried-wires are not retried a second time.
 =/  retry-context  *(map @t [pid=@tas request=request:http])
 =/  retried-wires  *(set @t)
+::  MCP Streamable HTTP session ids per upstream proxy server.
+::  Servers like PostHog assign a session id in the initialize
+::  response and reject every subsequent call without an
+::  Mcp-Session-Id header that echoes it. Linear is lenient and
+::  works without sessions; we keep this map populated only for
+::  servers that actually return a session id.
+=/  mcp-sessions  *(map server-id:mcp-proxy @t)
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -679,6 +686,9 @@
     =/  cookie=(unit @t)  (~(get by cookies) sid)
     =?  out-headers  ?=(^ cookie)
       (snoc out-headers ['cookie' u.cookie])
+    =/  session=(unit @t)  (~(get by mcp-sessions) sid)
+    =?  out-headers  ?=(^ session)
+      (snoc out-headers ['mcp-session-id' u.session])
     =/  oauth-hdr=(unit [key=@t value=@t])
       (get-oauth-header oauth-provider.srv our.bowl now.bowl)
     =?  out-headers  ?=(^ oauth-hdr)
@@ -831,6 +841,9 @@
             ['user-agent' 'urbit-mcp']
         ==
       headers.u.srv
+    =/  session=(unit @t)  (~(get by mcp-sessions) `@tas`sid)
+    =?  mcp-headers  ?=(^ session)
+      (snoc mcp-headers ['mcp-session-id' u.session])
     =?  mcp-headers  ?=(^ oauth-hdr)
       (snoc mcp-headers u.oauth-hdr)
     =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
@@ -1248,6 +1261,61 @@
         [%give %fact ~[path] %http-response-data !>(body)]
         [%give %kick ~[path] ~]
     ==
+  ::
+      [%iris %init @ ~]
+    ::  MCP initialize response. Capture the assigned Mcp-Session-Id
+    ::  (if any), fire-and-forget the notifications/initialized post,
+    ::  then schedule the actual tools/list which lands on the
+    ::  /iris/prime/<sid> handler below.
+    ::
+    =/  sid=server-id:mcp-proxy  i.t.t.wire
+    =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
+    ?~  srv  `this
+    ?.  ?=([%iris %http-response *] sign)
+      ~&  >>>  [%mcp-proxy %init-failed sid %bad-sign]
+      `this
+    =/  resp=client-response:iris  client-response.sign
+    ?.  ?=(%finished -.resp)
+      ~&  >>>  [%mcp-proxy %init-failed sid %not-finished]
+      `this
+    ?.  =(200 status-code.response-header.resp)
+      ~&  >>>  [%mcp-proxy %init-failed sid %status status-code.response-header.resp]
+      `this
+    ::  pull Mcp-Session-Id from the response headers (case-insensitive).
+    ::  If absent, the server doesn't enforce sessions; we still proceed
+    ::  with the tools/list, just without the header.
+    ::
+    =/  session=(unit @t)
+      =/  hs  headers.response-header.resp
+      |-  ^-  (unit @t)
+      ?~  hs  ~
+      ?:  =((cass (trip key.i.hs)) "mcp-session-id")
+        `value.i.hs
+      $(hs t.hs)
+    =?  mcp-sessions  ?=(^ session)
+      (~(put by mcp-sessions) sid u.session)
+    =/  oauth-hdr=(unit [key=@t value=@t])
+      (get-oauth-header oauth-provider.u.srv our.bowl now.bowl)
+    =/  cookie=(unit @t)  (~(get by cookies) sid)
+    =/  initialized-card=card:agent:gall
+      %+  build-mcp-iris-card  /iris/initialized/[sid]
+      :*  url.u.srv  headers.u.srv  cookie  session  oauth-hdr
+          build-initialized-body
+      ==
+    =/  prime-card=card:agent:gall
+      %+  build-mcp-iris-card  /iris/prime/[sid]
+      :*  url.u.srv  headers.u.srv  cookie  session  oauth-hdr
+          build-tools-list-body
+      ==
+    :_  this
+    ~[initialized-card prime-card]
+  ::
+  ::  notifications/initialized response — discard. The server may
+  ::  reply 202 Accepted or 200 with empty body; either way nothing
+  ::  to do.
+  ::
+      [%iris %initialized @ ~]
+    `this
   ::
       [%iris %prime @ ~]
     ::  proxy upstream tools/list prime response — mirrors the
@@ -2359,14 +2427,14 @@
           now=@da
       ==
   ^-  (list card:agent:gall)
-  =/  body=@t
-    %-  en:json:html
-    %-  pairs:enjs:format
-    :~  ['jsonrpc' s+'2.0']
-        ['method' s+'tools/list']
-        ['id' (numb:enjs:format 1)]
-        ['params' (pairs:enjs:format ~)]
-    ==
+  ::  Two-stage handshake: initialize first; the [%iris %init @ ~]
+  ::  arvo handler captures the assigned Mcp-Session-Id and queues
+  ::  the actual tools/list. Servers that don't enforce sessions
+  ::  (e.g. Linear) are unaffected — they just don't return the
+  ::  Mcp-Session-Id header and we fall through to a session-less
+  ::  tools/list.
+  ::
+  =/  init-body=@t  build-init-body
   %+  murn  server-order
   |=  sid=server-id:mcp-proxy
   ^-  (unit card:agent:gall)
@@ -2374,31 +2442,20 @@
   ?~  srv  ~
   ?.  enabled.u.srv  ~
   ?.  =(%proxy mode.u.srv)  ~
-  =/  out-headers=(list [key=@t value=@t])
-    %+  weld
-      :~  ['content-type' 'application/json']
-          ['accept' 'application/json, text/event-stream']
-          ['mcp-protocol-version' '2025-03-26']
-          ['user-agent' 'urbit-mcp']
-      ==
-    headers.u.srv
-  =/  cookie=(unit @t)  (~(get by cookies) sid)
-  =?  out-headers  ?=(^ cookie)
-    (snoc out-headers ['cookie' u.cookie])
-  =/  oauth-hdr=(unit [key=@t value=@t])
-    (get-oauth-header oauth-provider.u.srv our now)
-  =?  out-headers  ?=(^ oauth-hdr)
-    (snoc out-headers u.oauth-hdr)
   %-  some
-  :*  %pass  /iris/prime/[sid]
-      %arvo  %i  %request
-      [%'POST' url.u.srv out-headers `(as-octs:mimes:html body)]
-      *outbound-config:iris
+  %+  build-mcp-iris-card  /iris/init/[sid]
+  :*  url.u.srv
+      headers.u.srv
+      (~(get by cookies) sid)
+      ~
+      (get-oauth-header oauth-provider.u.srv our now)
+      init-body
   ==
 ::
-::  build a single iris card that POSTs tools/list to one upstream
+::  build a single iris card that POSTs initialize to one upstream
 ::  (used by add-server / refresh-spec to prime just the affected
-::  upstream rather than every one).
+::  upstream rather than every one). The actual tools/list fires
+::  from the [%iris %init @ ~] handler once the session is known.
 ::
 ++  prime-one-proxy-card
   |=  $:  sid=server-id:mcp-proxy
@@ -2410,14 +2467,76 @@
   ^-  (unit card:agent:gall)
   ?.  enabled.srv  ~
   ?.  =(%proxy mode.srv)  ~
-  =/  body=@t
-    %-  en:json:html
-    %-  pairs:enjs:format
-    :~  ['jsonrpc' s+'2.0']
-        ['method' s+'tools/list']
-        ['id' (numb:enjs:format 1)]
-        ['params' (pairs:enjs:format ~)]
-    ==
+  %-  some
+  %+  build-mcp-iris-card  /iris/init/[sid]
+  :*  url.srv
+      headers.srv
+      cookie
+      ~
+      (get-oauth-header oauth-provider.srv our now)
+      build-init-body
+  ==
+::
+::  body for the initial MCP handshake. Sent on /iris/init/<sid>.
+::
+++  build-init-body
+  ^-  @t
+  %-  en:json:html
+  %-  pairs:enjs:format
+  :~  ['jsonrpc' s+'2.0']
+      ['method' s+'initialize']
+      ['id' (numb:enjs:format 0)]
+      :-  'params'
+      %-  pairs:enjs:format
+      :~  ['protocolVersion' s+'2025-03-26']
+          ['capabilities' (pairs:enjs:format ~)]
+          :-  'clientInfo'
+          %-  pairs:enjs:format
+          :~  ['name' s+'urbit-mcp']
+              ['version' s+'0.1']
+          ==
+      ==
+  ==
+::
+::  body for tools/list. Sent on /iris/prime/<sid> after init.
+::
+++  build-tools-list-body
+  ^-  @t
+  %-  en:json:html
+  %-  pairs:enjs:format
+  :~  ['jsonrpc' s+'2.0']
+      ['method' s+'tools/list']
+      ['id' (numb:enjs:format 1)]
+      ['params' (pairs:enjs:format ~)]
+  ==
+::
+::  body for the notifications/initialized notification, fired
+::  fire-and-forget after init. Per MCP spec a client must send
+::  this before any request other than initialize.
+::
+++  build-initialized-body
+  ^-  @t
+  %-  en:json:html
+  %-  pairs:enjs:format
+  :~  ['jsonrpc' s+'2.0']
+      ['method' s+'notifications/initialized']
+      ['params' (pairs:enjs:format ~)]
+  ==
+::
+::  consolidate the standard MCP request-card construction. wraps
+::  url + per-server headers + cookie + session-id + oauth bearer
+::  + body into a single iris %request card on the given wire.
+::
+++  build-mcp-iris-card
+  |=  $:  =wire
+          url=@t
+          extra-headers=(list [key=@t value=@t])
+          cookie=(unit @t)
+          session=(unit @t)
+          oauth-hdr=(unit [key=@t value=@t])
+          body=@t
+      ==
+  ^-  card:agent:gall
   =/  out-headers=(list [key=@t value=@t])
     %+  weld
       :~  ['content-type' 'application/json']
@@ -2425,17 +2544,16 @@
           ['mcp-protocol-version' '2025-03-26']
           ['user-agent' 'urbit-mcp']
       ==
-    headers.srv
+    extra-headers
   =?  out-headers  ?=(^ cookie)
     (snoc out-headers ['cookie' u.cookie])
-  =/  oauth-hdr=(unit [key=@t value=@t])
-    (get-oauth-header oauth-provider.srv our now)
+  =?  out-headers  ?=(^ session)
+    (snoc out-headers ['mcp-session-id' u.session])
   =?  out-headers  ?=(^ oauth-hdr)
     (snoc out-headers u.oauth-hdr)
-  %-  some
-  :*  %pass  /iris/prime/[sid]
+  :*  %pass  wire
       %arvo  %i  %request
-      [%'POST' url.srv out-headers `(as-octs:mimes:html body)]
+      [%'POST' url out-headers `(as-octs:mimes:html body)]
       *outbound-config:iris
   ==
 ::
