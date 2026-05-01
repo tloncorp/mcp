@@ -1550,26 +1550,26 @@
           [%give %fact ~[path] %http-response-data !>(bod)]
           [%give %kick ~[path] ~]
       ==
-    ::  for proxy calls, forward upstream response as-is
+    ::  for proxy calls, forward upstream response as-is. drop hop-by-hop
+    ::  framing headers, plus content-encoding and content-length:
+    ::  iris transparently decompresses gzip/deflate responses, so the
+    ::  upstream's content-encoding would tell our client to decode an
+    ::  already-decoded body (resulting in empty output) and the upstream
+    ::  content-length no longer matches the inflated body. eyre/the
+    ::  give-simple-payload path computes the right content-length itself.
+    ::
     =/  resp-headers=(list [key=@t value=@t])
       %+  weld  ~[cors ['access-control-expose-headers' 'Mcp-Session-Id']]
       %+  skip  headers.response-header.resp
       |=  [key=@t value=@t]
-      ?|(=(key 'transfer-encoding') =(key 'connection'))
+      ?|  =(key 'transfer-encoding')
+          =(key 'connection')
+          =(key 'content-encoding')
+          =(key 'content-length')
+      ==
     =/  bod=(unit octs)
       ?~  full-file.resp  ~
       `data.u.full-file.resp
-    ::  diagnostic: tools/call from Supabase/Ref returns 200/empty for
-    ::  mysterious reasons; log status + body length + sid so we can
-    ::  see what we actually received before forwarding.
-    ::
-    ~&  >  :*  %mcp-proxy
-              %proxy-resp
-              ?~(proxy-sid 'unknown' u.proxy-sid)
-              status-code.response-header.resp
-              ?~(bod 0 (met 3 q.u.bod))
-              ?~(bod '<empty>' `@t`(end 3^200 q.u.bod))
-          ==
     :_  this
     =/  =path  /http-response/[u.eid]
     :~  [%give %fact ~[path] %http-response-header !>(`response-header:http`[status-code.response-header.resp resp-headers])]
