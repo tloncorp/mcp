@@ -1008,7 +1008,11 @@
   ::
   ::  prefix tool names with their server-id (e.g. "create_issue"
   ::  becomes "linear_create_issue") so they round-trip through
-  ::  split-on-underscore in route-call.
+  ::  split-on-underscore in route-call. always unconditional: the
+  ::  cache holds raw upstream names, so a tool whose native name
+  ::  already begins with the sid (e.g. ref's "ref_search_documentation")
+  ::  must still be prefixed — we'd otherwise strip the wrong piece on
+  ::  the call path and ask the upstream for a tool it doesn't have.
   ::
   ++  prefix-tool-names
     |=  [sid=server-id:mcp-proxy tools=(list json)]
@@ -1019,12 +1023,8 @@
     ?.  ?=(%o -.tool)  tool
     =/  name=@t  (tool-name tool)
     ?:  =('' name)  tool
-    ::  if already prefixed (proxy mode tools come back prefixed
-    ::  from upstream), leave alone
-    =/  prefix=@t  (rap 3 ~[(scot %tas sid) '_'])
     =/  prefixed-name=@t
-      ?:  =(prefix (end [3 (met 3 prefix)] name))  name
-      (rap 3 ~[prefix name])
+      (rap 3 ~[(scot %tas sid) '_' name])
     [%o (~(put by p.tool) 'name' s+prefixed-name)]
   ::
   ::  filter the catalog by query/server/limit, returning a slimmed
