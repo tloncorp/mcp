@@ -47,6 +47,11 @@
 ::  works without sessions; we keep this map populated only for
 ::  servers that actually return a session id.
 =/  mcp-sessions  *(map server-id:mcp-proxy @t)
+::  wire-id -> server-id, so when an iris response on /iris/proxy/<wid>
+::  arrives we know which server's mcp-sessions entry to update from
+::  the response's Mcp-Session-Id header (some servers rotate per
+::  request, e.g. Supabase, Ref).
+=/  wire-server  *(map @t server-id:mcp-proxy)
 ^-  agent:gall
 =<
 |_  =bowl:gall
@@ -848,6 +853,7 @@
       (snoc mcp-headers u.oauth-hdr)
     =/  wire-id=@t  (scot %uv `@uv`eny.bowl)
     =.  pending  (~(put by pending) wire-id eyre-id)
+    =.  wire-server  (~(put by wire-server) wire-id `@tas`sid)
     =/  proxy-req=request:http
       [%'POST' url.u.srv mcp-headers `(as-octs:mimes:html new-body)]
     =?  retry-context  ?=(^ oauth-provider.u.srv)
@@ -1002,7 +1008,11 @@
   ::
   ::  prefix tool names with their server-id (e.g. "create_issue"
   ::  becomes "linear_create_issue") so they round-trip through
-  ::  split-on-underscore in route-call.
+  ::  split-on-underscore in route-call. always unconditional: the
+  ::  cache holds raw upstream names, so a tool whose native name
+  ::  already begins with the sid (e.g. ref's "ref_search_documentation")
+  ::  must still be prefixed — we'd otherwise strip the wrong piece on
+  ::  the call path and ask the upstream for a tool it doesn't have.
   ::
   ++  prefix-tool-names
     |=  [sid=server-id:mcp-proxy tools=(list json)]
@@ -1013,12 +1023,8 @@
     ?.  ?=(%o -.tool)  tool
     =/  name=@t  (tool-name tool)
     ?:  =('' name)  tool
-    ::  if already prefixed (proxy mode tools come back prefixed
-    ::  from upstream), leave alone
-    =/  prefix=@t  (rap 3 ~[(scot %tas sid) '_'])
     =/  prefixed-name=@t
-      ?:  =(prefix (end [3 (met 3 prefix)] name))  name
-      (rap 3 ~[prefix name])
+      (rap 3 ~[(scot %tas sid) '_' name])
     [%o (~(put by p.tool) 'name' s+prefixed-name)]
   ::
   ::  filter the catalog by query/server/limit, returning a slimmed
@@ -1281,17 +1287,11 @@
     ?.  =(200 status-code.response-header.resp)
       ~&  >>>  [%mcp-proxy %init-failed sid %status status-code.response-header.resp]
       `this
-    ::  pull Mcp-Session-Id from the response headers (case-insensitive).
-    ::  If absent, the server doesn't enforce sessions; we still proceed
-    ::  with the tools/list, just without the header.
+    ::  pull Mcp-Session-Id from the response headers. If absent, the
+    ::  server doesn't enforce sessions; we still proceed without one.
     ::
     =/  session=(unit @t)
-      =/  hs  headers.response-header.resp
-      |-  ^-  (unit @t)
-      ?~  hs  ~
-      ?:  =((cass (trip key.i.hs)) "mcp-session-id")
-        `value.i.hs
-      $(hs t.hs)
+      (extract-session-id headers.response-header.resp)
     =?  mcp-sessions  ?=(^ session)
       (~(put by mcp-sessions) sid u.session)
     =/  oauth-hdr=(unit [key=@t value=@t])
@@ -1351,6 +1351,14 @@
     =/  tl=json  (get-json-field result 'tools')
     ?~  tl  `this
     ?.  ?=(%a -.tl)  `this
+    ::  capture rotated Mcp-Session-Id from the tools/list response —
+    ::  some servers (Supabase, Ref) issue a new session id on each
+    ::  response and reject subsequent requests carrying the stale one.
+    ::
+    =/  rotated=(unit @t)
+      (extract-session-id headers.response-header.resp)
+    =?  mcp-sessions  ?=(^ rotated)
+      (~(put by mcp-sessions) sid u.rotated)
     `this(proxy-tools-cache (~(put by proxy-tools-cache) sid p.tl))
   ::
       [%iris %spec @ ~]
@@ -1482,6 +1490,8 @@
     =.  retry-context  (~(del by retry-context) wire-id)
     =.  retried-wires  (~(del in retried-wires) wire-id)
     =.  pending  (~(del by pending) wire-id)
+    =/  proxy-sid=(unit server-id:mcp-proxy)  (~(get by wire-server) wire-id)
+    =.  wire-server  (~(del by wire-server) wire-id)
     =/  client-id=(unit json)  (~(get by wrap-set) wire-id)
     =/  needs-wrap=?  ?=(^ client-id)
     =?  wrap-set  needs-wrap  (~(del by wrap-set) wire-id)
@@ -1496,6 +1506,16 @@
       %-  give-http  :^  u.eid  502
       ~[cors ['content-type' 'application/json']]
       (some (as-octs:mimes:html '{"error":"upstream in progress"}'))
+    ::  capture rotated Mcp-Session-Id from this proxy-mode response
+    ::  before we forward the body to the LLM client. servers that
+    ::  rotate per request (Supabase, Ref) reject the next call if we
+    ::  keep using the prior session id.
+    ::
+    =?  mcp-sessions  ?=(^ proxy-sid)
+      =/  rotated=(unit @t)
+        (extract-session-id headers.response-header.resp)
+      ?~  rotated  mcp-sessions
+      (~(put by mcp-sessions) u.proxy-sid u.rotated)
     ::  for openapi calls, wrap the REST response in MCP format.
     ::  401-driven token refresh is handled before this point via the
     ::  retry-context / on-agent /grants subscription, so by the time
@@ -1530,12 +1550,23 @@
           [%give %fact ~[path] %http-response-data !>(bod)]
           [%give %kick ~[path] ~]
       ==
-    ::  for proxy calls, forward upstream response as-is
+    ::  for proxy calls, forward upstream response as-is. drop hop-by-hop
+    ::  framing headers, plus content-encoding and content-length:
+    ::  iris transparently decompresses gzip/deflate responses, so the
+    ::  upstream's content-encoding would tell our client to decode an
+    ::  already-decoded body (resulting in empty output) and the upstream
+    ::  content-length no longer matches the inflated body. eyre/the
+    ::  give-simple-payload path computes the right content-length itself.
+    ::
     =/  resp-headers=(list [key=@t value=@t])
       %+  weld  ~[cors ['access-control-expose-headers' 'Mcp-Session-Id']]
       %+  skip  headers.response-header.resp
       |=  [key=@t value=@t]
-      ?|(=(key 'transfer-encoding') =(key 'connection'))
+      ?|  =(key 'transfer-encoding')
+          =(key 'connection')
+          =(key 'content-encoding')
+          =(key 'content-length')
+      ==
     =/  bod=(unit octs)
       ?~  full-file.resp  ~
       `data.u.full-file.resp
@@ -2478,6 +2509,21 @@
   ==
 ::
 ::  body for the initial MCP handshake. Sent on /iris/init/<sid>.
+::
+::  extract Mcp-Session-Id from a response-headers list (case-insensitive
+::  per HTTP spec). Per MCP Streamable HTTP §2025-06-18, clients SHOULD
+::  update their cached session id whenever a server returns one — not
+::  just on initialize. Some servers (Supabase, Ref) rotate the session
+::  id mid-flight; clients that only capture from initialize end up
+::  sending a stale id and getting empty/200 in return.
+::
+++  extract-session-id
+  |=  hs=(list [key=@t value=@t])
+  ^-  (unit @t)
+  ?~  hs  ~
+  ?:  =((cass (trip key.i.hs)) "mcp-session-id")
+    `value.i.hs
+  $(hs t.hs)
 ::
 ++  build-init-body
   ^-  @t
