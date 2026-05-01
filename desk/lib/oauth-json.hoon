@@ -17,9 +17,17 @@
     %+  turn  ~(tap by gs)
     |=  [=provider-id:oauth =grant:oauth]
     ^-  json
+    ::  expired iff there is an expiry and it has passed. connected
+    ::  reflects "usable right now" — a stored-but-expired grant is
+    ::  NOT connected, so the UI shows a Reconnect/Connect affordance
+    ::  rather than a green check.
+    ::
+    =/  is-expired=?
+      ?~  expires-at.grant  %.n
+      (lth u.expires-at.grant now)
     %-  pairs
     :~  ['provider' s+(scot %tas provider-id)]
-        ['connected' b+%.y]
+        ['connected' b+!is-expired]
         ['tokenType' s+token-type.grant]
         ['scopes' s+scopes.grant]
         ['hasRefreshToken' b+?=(^ refresh-token.grant)]
@@ -28,9 +36,7 @@
         ?~  expires-at.grant  ~
         s+(scot %da u.expires-at.grant)
       ::
-        :-  'expired'
-        ?~  expires-at.grant  b+%.n
-        b+(lth u.expires-at.grant now)
+        ['expired' b+is-expired]
     ==
   --
 --
