@@ -177,8 +177,10 @@
     ::  proceed with the auth scheme actually configured (e.g. cookie),
     ::  rather than choking on Eyre's HTML fallback.
     ::
-    =/  segs=(list @t)  (rash url.request.req apat:de-purl:html)
-    ?:  ?&(?=(^ segs) =('.well-known' i.segs))
+    =/  url-tape=tape  (trip url.request.req)
+    ?:  ?&  (gte (lent url-tape) 12)
+            =("/.well-known" (scag 12 url-tape))
+        ==
       :_  this
       (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
     ?.  authenticated.req
