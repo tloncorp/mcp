@@ -36,9 +36,29 @@
     %-  as-octt:mimes:html
     (trip (en:json:html json))
 ::
+::  +json-response: respond with status code and JSON body
+::    Used for endpoints that must return JSON (e.g. OAuth discovery
+::    stubs at /.well-known/*) so MCP clients that probe per spec do
+::    not choke trying to parse Eyre's HTML fallback as JSON.
+::
+++  json-response
+  |=  [eyre-id=@ta status=@ud =json]
+  ^-  (list card)
+  %+  give-simple-payload:app:server
+    eyre-id
+  ^-  simple-payload:http
+  :-  :-  status
+      :~  ['content-type' 'application/json']
+          ['cache-control' 'no-cache']
+      ==
+    %-  some
+    %-  as-octt:mimes:html
+    (trip (en:json:html json))
+::
 +$  card  card:agent:gall
 +$  versioned-state
-  $%  state-0
+  $%  state-1
+      state-0
   ==
 +$  state-0
   $:  %0
@@ -46,10 +66,19 @@
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
   ==
+::  state-1: same shape as state-0, version bump signals existing
+::  ships to bind /.well-known on upgrade (see on-load).
+::
++$  state-1
+  $:  %1
+      tools=(set tool:mcp)
+      prompts=(set prompt:mcp)
+      resources=(set resource:mcp)
+  ==
 --
 %-  agent:dbug
 ^-  agent:gall
-=|  state-0
+=|  state-1
 =*  state  -
 %+  verb  |
 |_  =bowl:gall
@@ -67,10 +96,19 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
-  :-  ~
   ?-    -.old
+      %1
+    `this(state old)
+  ::
       %0
-    this(state old)
+    ::  Upgrade: bind /.well-known to stub OAuth discovery probes.
+    ::  See comment in on-init for rationale.
+    ::
+    :_  this(state [%1 +.old])
+    :~  :*  %pass  /eyre/connect/well-known
+            %arvo  %e  %connect
+            [[~ ~['.well-known']] dap.bowl]
+    ==  ==
   ==
 ::
 ++  on-init
@@ -79,6 +117,15 @@
   :~  :*  %pass  /eyre/connect
           %arvo  %e  %connect
           [`/mcp dap.bowl]
+      ==
+      ::  Bind /.well-known so we can stub OAuth discovery endpoints.
+      ::  MCP clients probe these per the draft auth spec; without a
+      ::  binding Eyre redirects to /apps/landscape/ (HTML), and the
+      ::  client errors trying to parse HTML as JSON.
+      ::
+      :*  %pass  /eyre/connect/well-known
+          %arvo  %e  %connect
+          [[~ ~['.well-known']] dap.bowl]
       ==
       :*  %pass  ~
           %arvo  %k
@@ -125,6 +172,15 @@
   ++  handle-req
     |=  [eyre-id=@ta req=inbound-request:eyre]
     ^-  (quip card _this)
+    ::  OAuth discovery probes from MCP clients land here via the
+    ::  /.well-known binding. Return a JSON 404 so the client can
+    ::  proceed with the auth scheme actually configured (e.g. cookie),
+    ::  rather than choking on Eyre's HTML fallback.
+    ::
+    =/  segs=(list @t)  (rash url.request.req apat:de-purl:html)
+    ?:  ?&(?=(^ segs) =('.well-known' i.segs))
+      :_  this
+      (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
     ?.  authenticated.req
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
