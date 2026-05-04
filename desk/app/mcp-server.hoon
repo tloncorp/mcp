@@ -57,7 +57,8 @@
 ::
 +$  card  card:agent:gall
 +$  versioned-state
-  $%  state-1
+  $%  state-2
+      state-1
       state-0
   ==
 +$  state-0
@@ -66,8 +67,8 @@
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
   ==
-::  state-1: same shape as state-0, version bump signals existing
-::  ships to bind /.well-known on upgrade (see on-load).
+::  state-1: same shape as state-0, version bump binds /.well-known
+::  on upgrade.
 ::
 +$  state-1
   $:  %1
@@ -75,10 +76,18 @@
       prompts=(set prompt:mcp)
       resources=(set resource:mcp)
   ==
+::  state-2: same shape, version bump binds /oauth on upgrade.
+::
++$  state-2
+  $:  %2
+      tools=(set tool:mcp)
+      prompts=(set prompt:mcp)
+      resources=(set resource:mcp)
+  ==
 --
 %-  agent:dbug
 ^-  agent:gall
-=|  state-1
+=|  state-2
 =*  state  -
 %+  verb  |
 |_  =bowl:gall
@@ -96,19 +105,31 @@
   |=  =vase
   ^-  (quip card _this)
   =/  old  !<(versioned-state vase)
+  =/  oauth-card=card
+    :*  %pass  /eyre/connect/oauth
+        %arvo  %e  %connect
+        [[~ ~['oauth']] dap.bowl]
+    ==
+  =/  well-known-card=card
+    :*  %pass  /eyre/connect/well-known
+        %arvo  %e  %connect
+        [[~ ~['.well-known']] dap.bowl]
+    ==
   ?-    -.old
-      %1
+      %2
     `this(state old)
   ::
-      %0
-    ::  Upgrade: bind /.well-known to stub OAuth discovery probes.
-    ::  See comment in on-init for rationale.
+      %1
+    ::  Upgrade: bind /oauth to stub OAuth flow endpoints.
     ::
-    :_  this(state [%1 +.old])
-    :~  :*  %pass  /eyre/connect/well-known
-            %arvo  %e  %connect
-            [[~ ~['.well-known']] dap.bowl]
-    ==  ==
+    :_  this(state [%2 +.old])
+    :~  oauth-card  ==
+  ::
+      %0
+    ::  Upgrade: bind both /.well-known and /oauth.
+    ::
+    :_  this(state [%2 +.old])
+    :~  well-known-card  oauth-card  ==
   ==
 ::
 ++  on-init
@@ -126,6 +147,16 @@
       :*  %pass  /eyre/connect/well-known
           %arvo  %e  %connect
           [[~ ~['.well-known']] dap.bowl]
+      ==
+      ::  Bind /oauth so DCR/authorize/token probes from MCP clients
+      ::  get a clean RFC 6749 JSON error rather than Eyre's HTML
+      ::  login fallback. Without this the Claude Code /mcp dialog's
+      ::  OAuth flow disconnects the session even when cookie auth
+      ::  is configured.
+      ::
+      :*  %pass  /eyre/connect/oauth
+          %arvo  %e  %connect
+          [[~ ~['oauth']] dap.bowl]
       ==
       :*  %pass  ~
           %arvo  %k
@@ -198,6 +229,21 @@
         ==
       :_  this
       (json-response eyre-id 200 meta)
+    ::  OAuth endpoint stubs. We don't speak OAuth; auth is via the
+    ::  Cookie/header configured on the MCP client. Returning a
+    ::  proper RFC 6749 JSON error keeps clients (e.g. Claude Code's
+    ::  /mcp dialog) from choking on Eyre's HTML login fallback.
+    ::
+    ?:  ?&  (gte (lent url-tape) 6)
+            =("/oauth" (scag 6 url-tape))
+        ==
+      =/  err=json
+        %-  pairs:enjs:format
+        :~  ['error' s+'unsupported_response_type']
+            ['error_description' s+'this server does not implement OAuth']
+        ==
+      :_  this
+      (json-response eyre-id 400 err)
     ?.  authenticated.req
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
