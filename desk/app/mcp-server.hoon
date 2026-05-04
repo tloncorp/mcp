@@ -212,23 +212,50 @@
     ::  that ends in Eyre's HTML login fallback).
     ::
     =/  url-tape=tape  (trip url.request.req)
-    ?:  ?&  (gte (lent url-tape) 12)
-            =("/.well-known" (scag 12 url-tape))
-        ==
-      =/  host=@t
-        =/  h=(unit @t)
-          (get-header:http 'host' header-list.request.req)
-        ?~(h 'localhost' u.h)
-      =/  resource-uri=@t
-        (rap 3 'http://' host '/mcp' ~)
+    =/  host=@t
+      =/  h=(unit @t)
+        (get-header:http 'host' header-list.request.req)
+      ?~(h 'localhost' u.h)
+    =/  base=@t  (rap 3 'http://' host ~)
+    ::  RFC 9728 protected-resource metadata at the spec'd path.
+    ::  Empty authorization_servers + bearer_methods=header tells
+    ::  the client to use the auth header it already has.
+    ::
+    ?:  =("/.well-known/oauth-protected-resource" url-tape)
       =/  meta=json
         %-  pairs:enjs:format
-        :~  ['resource' s+resource-uri]
+        :~  ['resource' s+(cat 3 base '/mcp')]
             ['authorization_servers' a+~]
             ['bearer_methods_supported' a+~[s+'header']]
         ==
       :_  this
       (json-response eyre-id 200 meta)
+    ::  RFC 8414 authorization-server metadata. We don't actually
+    ::  speak OAuth, but a Zod-valid stub keeps the client out of
+    ::  parse-error territory; the OAuth flow itself fails cleanly
+    ::  at the /oauth/* endpoints below.
+    ::
+    ?:  =("/.well-known/oauth-authorization-server" url-tape)
+      =/  meta=json
+        %-  pairs:enjs:format
+        :~  ['issuer' s+base]
+            ['authorization_endpoint' s+(cat 3 base '/oauth/authorize')]
+            ['token_endpoint' s+(cat 3 base '/oauth/token')]
+            ['registration_endpoint' s+(cat 3 base '/oauth/register')]
+            ['response_types_supported' a+~[s+'code']]
+            ['grant_types_supported' a+~[s+'authorization_code']]
+            ['code_challenge_methods_supported' a+~[s+'S256']]
+            ['token_endpoint_auth_methods_supported' a+~[s+'none']]
+        ==
+      :_  this
+      (json-response eyre-id 200 meta)
+    ::  Any other /.well-known/* probe gets a JSON 404.
+    ::
+    ?:  ?&  (gte (lent url-tape) 12)
+            =("/.well-known" (scag 12 url-tape))
+        ==
+      :_  this
+      (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
     ::  OAuth endpoint stubs. We don't speak OAuth; auth is via the
     ::  Cookie/header configured on the MCP client. Returning a
     ::  proper RFC 6749 JSON error keeps clients (e.g. Claude Code's
