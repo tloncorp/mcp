@@ -68,7 +68,7 @@
 --
 %-  agent:dbug
 ^-  agent:gall
-=|  state-2
+=|  state-0
 =*  state  -
 %+  verb  |
 |_  =bowl:gall
@@ -98,7 +98,7 @@
     ==
   ?-    -.old
       %0
-    :_  this(state [%2 +.old])
+    :_  this(state [%0 +.old])
     :~  well-known-card  oauth-card  ==
   ==
 ::
