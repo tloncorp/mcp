@@ -50,26 +50,23 @@ Extract the cookie from the `set-cookie` header, which will look like this:
 urbauth-~your-ship=0v3.j2062.1prp1.qne4e.goq3h.ksudm
 ```
 
-### 3A. Register with Claude
+### 3a. Register with Codex
+
+Simply add this to your `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.zod]
+enabled = true
+url = "http://localhost:80/mcp"
+http_headers = { "Cookie" = "urbauth-~your-ship=0v3.j2062.1prp1.qne4e.goq3h.ksudm" }
+```
+
+### 3b. Register with Claude Code
 
 Add the MCP server to Claude using HTTP transport:
 
 ```bash
 claude mcp add --transport http zod http://localhost:80/mcp --header "Cookie: urbauth-~your-ship=0v3.j2062.1prp1.qne4e.goq3h.ksudm" --scope user
-```
-### 3B. Register with Codex
-
-Codex requires the `mcp-proxy` python package to function. Install with `uvx mcp-proxy`, then append this to your `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.fen]
-command = "uvx"
-args = [
-  "mcp-proxy",
-  "--transport", "streamablehttp",
-  "--headers", "Cookie", "urbauth-~your-ship=0v2.20fhu.t7ki1.cftjr.3s8bv.d9i5l",
-  "http://localhost:80/mcp"
-]
 ```
 
 ## Usage
@@ -82,29 +79,19 @@ You can ask your LLM to add new Tools. Give it a description (and ideally, examp
 
 ### Prompts (slash commands)
 
-MCP prompts for most default tools are available as slash commands, using the format `/mcp__<mcp server>__<tool name>`.
+Depending on your agent harness, MCP prompts for most default tools may be available as slash commands, e.g. `/mcp__zod__<tool name>`.
 
-```
-/mcp__zod__commit-desk mcp
-```
-
-Running these will append a predefined prompt to the conversation and call out to the LLM provider.
-
-Type `/` in Claude Code to see available Prompts.
-
-You can ask your LLM to add new Prompts. These can be any reusable snippet of text you like.
+Running these will append a prompt snippet to the conversation and call out to the LLM provider. You can ask your LLM to add new Prompts.
 
 ### Resources (@ mentions)
 
-MCP resources can be referenced with an `@` mention to pull the contents into the context window.
+Depending on your agent harness, MCP resources may be referenced with an `@` mention to pull their contents into the context window.
 
 ```
 @zod:https://docs.urbit.org/llms.txt
 ```
 
-Type `@` in Claude Code to see available Resources.
-
-You can ask your LLM to add new Resources by providing an `https://` URI to a public webpage or a `beam://` URI to a file in Clay.
+You can ask your LLM to add new Resources by providing an `https://` URI to a public webpage or a `beam://` URI to a file in your Urbit's Clay filesystem.
 
 ## Contributing
 
