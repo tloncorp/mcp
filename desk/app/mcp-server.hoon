@@ -2,6 +2,8 @@
 /+  dbug, verb, server, default-agent,
     jut=json-utils, ml=mcp
 |%
+++  mcp-protocol-version  %'2025-11-25'
+::
 ++  print-tang-to-wain
   |=  =tang
   ^-  wain
@@ -31,6 +33,7 @@
   :-  :-  200
       :~  ['content-type' 'application/json']
           ['cache-control' 'no-cache']
+          ['MCP-Protocol-Version' mcp-protocol-version]
       ==
     %-  some
     %-  as-octt:mimes:html
@@ -50,6 +53,7 @@
   :-  :-  status
       :~  ['content-type' 'application/json']
           ['cache-control' 'no-cache']
+          ['MCP-Protocol-Version' mcp-protocol-version]
       ==
     %-  some
     %-  as-octt:mimes:html
@@ -245,21 +249,50 @@
       :_  this
       (send-event eyre-id (internal:error:rpc:ml 'Authentication required' ~))
     ?+  method.request.req
-      [(simple-response eyre-id 405 ~) this]
+      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
     ::
         %'GET'
-      =/  connection-json=json
-        (pairs:enjs:format ~[['type' s+'connection']])
-      :_  this
-      (send-event eyre-id connection-json)
+      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
+    ::
+        %'DELETE'
+      [(simple-response eyre-id 405 ~[['allow' 'POST']]) this]
     ::
         %'POST'
+      =/  client-protocol-version=(unit @t)
+        (get-header:http 'mcp-protocol-version' header-list.request.req)
+      =/  bad-protocol-version=?
+        ?~  client-protocol-version
+          .n
+        !=(u.client-protocol-version mcp-protocol-version)
+      ?:  bad-protocol-version
+        :_  this
+        %:  json-response
+            eyre-id
+            400
+            (pairs:enjs:format ~[['error' s+'Unsupported MCP-Protocol-Version']])
+        ==
+      =/  accept=(unit @t)
+        (get-header:http 'accept' header-list.request.req)
+      ?~  accept
+        :_  this
+        %:  json-response
+            eyre-id
+            400
+            (pairs:enjs:format ~[['error' s+'Missing Accept header']])
+        ==
+      ?.  ?=(^ (find "application/json" (trip u.accept)))
+        :_  this
+        %:  json-response
+            eyre-id
+            406
+            (pairs:enjs:format ~[['error' s+'Accept must include application/json']])
+        ==
       =/  content-type=(unit @t)
         (get-header:http 'content-type' header-list.request.req)
       ?+  content-type
-        [(simple-response eyre-id 415 ~) this]
+        [(simple-response eyre-id 415 ~[['MCP-Protocol-Version' mcp-protocol-version]]) this]
       ::
-          [~ %'application/json']
+          ?([~ %'application/json'] [~ %'application/json; charset=utf-8'])
         =/  parsed=(unit json)
           (de:json:html q:(need body.request.req))
         ?~  parsed
@@ -273,7 +306,7 @@
           (send-event eyre-id (method:error:rpc:ml 'Method not found' id))
         ::
             [~ [%s %'notifications/initialized']]
-          [(simple-response eyre-id 200 ~) this]
+          [(simple-response eyre-id 202 ~[['MCP-Protocol-Version' mcp-protocol-version]]) this]
         ::
             [~ [%s %'initialize']]
           ::  XX check protocol version?
@@ -287,7 +320,7 @@
               :~  ['jsonrpc' s+'2.0']
                   :-  'result'
                   %-  pairs:enjs:format
-                  :~  ['protocolVersion' s+'2024-11-05']
+                      :~  ['protocolVersion' s+mcp-protocol-version]
                       :-  'capabilities'
                       %-  pairs:enjs:format
                       :~  :-  'tools'
