@@ -80,13 +80,13 @@
   ==
 ::
 ++  mcp-tools-to-json
-  |=  tool-set=(set tool:mcp)
+  |=  tools=(list tool:mcp)
   ^-  json
   %-  pairs:enjs:format
   :~  :-  'tools'
       :-  %a
       %+  turn
-        ~(tap in tool-set)
+        tools
       |=  =tool:mcp
       ^-  json
       =/  properties=(map @t json)
@@ -112,13 +112,13 @@
   ==
 ::
 ++  mcp-resources-to-json
-  |=  resource-set=(set resource:mcp)
+  |=  resources=(list resource:mcp)
   ^-  json
   %-  pairs:enjs:format
   :~  :-  'resources'
       :-  %a
       %+  turn
-        ~(tap in resource-set)
+        resources
       |=  =resource:mcp
       ^-  json
       %-  pairs:enjs:format
@@ -152,13 +152,13 @@
   ==
 ::
 ++  mcp-prompts-to-json
-  |=  prompt-set=(set prompt:mcp)
+  |=  prompts=(list prompt:mcp)
   ^-  json
   %-  pairs:enjs:format
   :~  :-  'prompts'
       :-  %a
       %+  turn
-        ~(tap in prompt-set)
+        prompts
       |=  =prompt:mcp
       ^-  json
       %-  pairs:enjs:format
