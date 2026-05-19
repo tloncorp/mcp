@@ -19,15 +19,14 @@
 ^-  tool:mcp
 :*  'get-file'
   '''
-  Fetch a Clay file (local or remote)
+  Fetch a Clay file on the local ship
   '''
   %-  my
-  :~  ['ship' [%string 'The Urbit ID of the ship this file is on.']]
-      ['desk' [%string 'The desk this file is in.']]
+  :~  ['desk' [%string 'The desk this file is in.']]
       ['case' [%string 'The $case (revision number or datetime) at which to access this file.(Default: now.)']]
       ['path' [%string 'The remaining filepath. Must begin with a /.']]
   ==
-  ~['ship' 'desk' 'path']
+  ~['desk' 'path']
   ^-  thread-builder:tool:mcp
   |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
   =/  m  (strand:spider ,vase)
@@ -43,14 +42,6 @@
     ?:  =('/' (snag 0 (trip p.u.pax)))
       (stab p.u.pax)
     (stab (crip (slag 1 (trip p.u.pax))))
-  =/  sip=(unit argument:tool:mcp)  (~(get by args) 'ship')
-  =/  who=(unit @t)
-    ?~  sip
-      ~
-    ?>  ?=([%string @t] u.sip)
-    `p.u.sip
-  ?~  who
-    ~|(%cant-find-ship !!)
   =/  dek=(unit argument:tool:mcp)   (~(get by args) 'desk')
   ?~  dek
     ~|(%missing-desk !!)
@@ -74,7 +65,7 @@
     ==
   ;<  =riot:clay  bind:m
     %:  warp:io
-        (@p (slav %p u.who))
+        our.bowl
         (@tas p.u.dek)
         ~
         %sing  %x
