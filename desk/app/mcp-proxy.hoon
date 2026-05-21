@@ -2159,20 +2159,116 @@
           !=(~ (find "webhook" lo))
       ==
     ?:  skip  $(ml t.ml)
-    ::  build tool with empty schema (params added later if needed)
     =/  tool=json
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
-          :-  'inputSchema'
-          %-  pairs:enjs:format
-          :~  ['type' s+'object']
-              ['properties' [%o ~]]
-              ['required' a+~]
-          ==
+          ['inputSchema' (get-op-input-schema spec op)]
       ==
     [tool $(ml t.ml)]
   $(items t.items, result (weld path-tools result))
+::
+::  +resolve-ref: follow a `#/components/schemas/<name>` $ref into the cached
+::  OpenAPI spec. Returns the target schema, or ~ if the ref shape is
+::  unrecognized / target is missing.
+::
+++  resolve-ref
+  |=  [spec=json ref=@t]
+  ^-  (unit json)
+  =/  ref-t=tape  (trip ref)
+  ?.  =((scag 21 ref-t) "#/components/schemas/")  ~
+  =/  name=@t  (crip (slag 21 ref-t))
+  ?.  ?=(%o -.spec)  ~
+  =/  comps=(unit json)  (~(get by p.spec) 'components')
+  ?.  ?&(?=(^ comps) ?=(%o -.u.comps))  ~
+  =/  schemas=(unit json)  (~(get by p.u.comps) 'schemas')
+  ?.  ?&(?=(^ schemas) ?=(%o -.u.schemas))  ~
+  (~(get by p.u.schemas) name)
+::
+::  +inline-refs: walk a JSON Schema fragment and inline every internal $ref it
+::  encounters. Caps recursion depth so self-referential schemas can't blow up.
+::  Unresolvable refs (external, malformed, missing target) pass through unchanged.
+::
+++  inline-refs
+  |=  [spec=json schema=json depth=@ud]
+  ^-  json
+  ?:  =(0 depth)  schema
+  ?~  schema  schema
+  ?-  -.schema
+      ?(%n %s %b)  schema
+      %a
+    [%a (turn p.schema |=(j=json (inline-refs spec j (dec depth))))]
+      %o
+    =/  ref=(unit json)  (~(get by p.schema) '$ref')
+    ?:  ?&(?=(^ ref) ?=([%s *] u.ref))
+      =/  res=(unit json)  (resolve-ref spec p.u.ref)
+      ?~  res  schema
+      (inline-refs spec u.res (dec depth))
+    :-  %o
+    %-  ~(run by p.schema)
+    |=  v=json
+    (inline-refs spec v (dec depth))
+  ==
+::
+::  +empty-input-schema: the {type:object, properties:{}, required:[]} stub.
+::  Used as a fallback when an operation declares no body or parameters.
+::
+++  empty-input-schema
+  ^-  json
+  (pairs:enjs:format ~[['type' s+'object'] ['properties' [%o ~]] ['required' a+~]])
+::
+::  +get-op-input-schema: derive an MCP-style `inputSchema` from an OpenAPI
+::  operation. Walks path/query `parameters` and the `requestBody`
+::  `application/json` `schema` (resolving $refs through inline-refs) and
+::  merges them into a single {type:object, properties, required} JSON
+::  Schema object — the shape MCP clients expect for tool input.
+::
+++  get-op-input-schema
+  |=  [spec=json op=json]
+  ^-  json
+  ?.  ?=(%o -.op)  empty-input-schema
+  ::  parameters → flat props + required entries
+  =/  param-pairs=[ps=(map @t json) rs=(list json)]
+    =/  pj=(unit json)  (~(get by p.op) 'parameters')
+    ?.  ?&(?=(^ pj) ?=(%a -.u.pj))  [*(map @t json) ~]
+    %+  roll  p.u.pj
+    |=  [param=json acc=[ps=(map @t json) rs=(list json)]]
+    ^+  acc
+    ?.  ?=(%o -.param)  acc
+    =/  nm=@t  (get-json-string param 'name')
+    ?:  =('' nm)  acc
+    =/  sch=(unit json)  (~(get by p.param) 'schema')
+    =/  out=json
+      ?~  sch  (pairs:enjs:format ~[['type' s+'string']])
+      (inline-refs spec u.sch 16)
+    =/  req=?
+      =/  r=(unit json)  (~(get by p.param) 'required')
+      ?&(?=(^ r) ?=([%b *] u.r) p.u.r)
+    :-  (~(put by ps.acc) nm out)
+    ?:(req [s+nm rs.acc] rs.acc)
+  ::  requestBody.content."application/json".schema → resolve + merge top-level
+  =/  body-pairs=[ps=(map @t json) rs=(list json)]
+    =/  bj=(unit json)  (~(get by p.op) 'requestBody')
+    ?.  ?&(?=(^ bj) ?=(%o -.u.bj))  [*(map @t json) ~]
+    =/  ct=(unit json)  (~(get by p.u.bj) 'content')
+    ?.  ?&(?=(^ ct) ?=(%o -.u.ct))  [*(map @t json) ~]
+    =/  aj=(unit json)  (~(get by p.u.ct) 'application/json')
+    ?.  ?&(?=(^ aj) ?=(%o -.u.aj))  [*(map @t json) ~]
+    =/  sch=(unit json)  (~(get by p.u.aj) 'schema')
+    ?~  sch  [*(map @t json) ~]
+    =/  res=json  (inline-refs spec u.sch 16)
+    ?.  ?=(%o -.res)  [*(map @t json) ~]
+    =/  rp=(unit json)  (~(get by p.res) 'properties')
+    =/  rr=(unit json)  (~(get by p.res) 'required')
+    :-  ?.  ?&(?=(^ rp) ?=(%o -.u.rp))  *(map @t json)
+        p.u.rp
+    ?.  ?&(?=(^ rr) ?=(%a -.u.rr))  ~
+    p.u.rr
+  %-  pairs:enjs:format
+  :~  ['type' s+'object']
+      ['properties' [%o (~(uni by ps.param-pairs) ps.body-pairs)]]
+      ['required' [%a (weld rs.param-pairs rs.body-pairs)]]
+  ==
 ::
 ::  find an OpenAPI operation by operationId and return [path method operation]
 ::
