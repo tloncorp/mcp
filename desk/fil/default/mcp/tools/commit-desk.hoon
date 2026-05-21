@@ -49,6 +49,31 @@
           ~
         `[%rose p.tak (prune-err q.tak)]
       ==
+    ::
+    ++  safe-set-timeout
+      |*  computation-result=mold
+      =/  m  (strand ,computation-result)
+      |=  [time=@dr computation=form:m]
+      ^-  form:m
+      ;<  now=@da  bind:m  get-time:io
+      =/  when  (add now time)
+      =/  =card:agent:gall
+        [%pass /timeout/(scot %da when) %arvo %b %wait when]
+      ;<  ~  bind:m  (send-raw-card:io card)
+      |=  tin=strand-input:strand
+      =*  loop  $
+      ?:  ?&  ?=([~ %sign [%timeout @ ~] %behn %wake *] in.tin)
+              =((scot %da when) i.t.wire.u.in.tin)
+          ==
+        `[%done ~]
+      =/  c-res  (computation tin)
+      ?:  ?=(%cont -.next.c-res)
+        c-res(self.next ..loop(computation self.next.c-res))
+      ?:  ?=(%done -.next.c-res)
+        =/  =card:agent:gall
+          [%pass /timeout/(scot %da when) %arvo %b %rest when]
+        c-res(cards [card cards.c-res])
+      c-res
     --
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
@@ -87,14 +112,32 @@
       (send-raw-card:io [%pass /dill-logs %arvo %d %logs `~])
     ;<  ~  bind:m
       (poke-our:io %hood %kiln-commit !>([(@tas p.u.dek) %.n]))
-    ::  XX must remove set-timeout
-    ::     probably need to use sole just for this one use-case
-    ;<  [wire dill-sign=sign-arvo]  bind:m
-      ((set-timeout:io ,[wire sign-arvo]) ~s2 take-sign-arvo:io)
-    ?>  ?=([%dill %logs *] dill-sign)
+    ;<  maybe-dill-sign=(unit sign-arvo)  bind:m
+      %+  (safe-set-timeout (unit sign-arvo))
+        ~s10
+      =/  m  (strand ,(unit sign-arvo))
+      ^-  form:m
+      |=  tin=strand-input:strand
+      ?+    in.tin  `[%skip ~]
+          ~
+        `[%wait ~]
+      ::
+          [~ %sign *]
+        ?.  =(/dill-logs wire.u.in.tin)
+          `[%skip ~]
+        `[%done `sign-arvo.u.in.tin]
+      ==
+    ?~  maybe-dill-sign
+      %-  pure:m
+      !>  ^-  json
+      %-  pairs:enjs:format
+      :~  ['type' s+'text']
+          ['text' s+'No changes to commit!']
+      ==
+    ?>  ?=([%dill %logs *] u.maybe-dill-sign)
     ;<  ~  bind:m
       (send-raw-card:io [%pass /dill-logs %arvo %d %logs ~])
-    =/  [%dill %logs =told:dill]  dill-sign
+    =/  [%dill %logs =told:dill]  u.maybe-dill-sign
     ?-    told
         [%crud *]
       %-  pure:m
