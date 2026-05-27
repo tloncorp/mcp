@@ -2,7 +2,23 @@
 
 A general-purpose Model Context Protocol interface for Urbit.
 
-## Developer Setup
+## Quickstart
+
+The fastest way to get a running Urbit with MCP configured is to [install Groundwire](https://groundwire.io/). The onboarding script will automatically configure your ship for Codex, Claude Code, and Opencode.
+
+```bash
+curl -fsSL https://groundwire.io/install.sh | bash
+```
+
+If you don't need your LLM to have a self-custodied decentralized ID, you can skip the attestation flow.
+
+```bash
+curl -fsSL https://groundwire.io/install.sh | bash -s -- --skip-attestation
+```
+
+Note that this will configure a hard-coded cookie which will eventually expire. Your ship's local Codex and Opencode config files link to this README, which has instructions for getting a new cookie.
+
+## Build from source
 
 ### 1. Build and Install
 
@@ -95,7 +111,7 @@ You can ask your LLM to add new Resources by providing an `https://` URI to a pu
 
 ## Contributing
 
-This repo requires commits to be signed with a [Groundwire](https://groundwire.network) identity. PRs with unsigned commits will be rejected by CI.
+This repo requires commits to be signed with a [Groundwire](https://groundwire.io/) identity. PRs with unsigned commits will be rejected by CI.
 
 ### Setup commit signing
 
