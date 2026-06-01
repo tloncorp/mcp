@@ -811,9 +811,14 @@
             =(req-method %'PUT')
             =(req-method %'PATCH')
         ==
+      ::  strip path-template params (host, name, id, etc.) from the
+      ::  body. OpenAPI puts them in the URL, not the payload — and if
+      ::  a body field happens to share a name with a path param the
+      ::  agent sees the path value duplicated in the body, which can
+      ::  silently clobber a different field with the same key.
       =/  body=(unit octs)
         ?.  has-body  ~
-        `(as-octs:mimes:html (en:json:html args))
+        `(as-octs:mimes:html (en:json:html (json-without-keys args path-params)))
       =?  out-headers  has-body
         [['content-type' 'application/json'] out-headers]
       ::  store eyre-id and use behn to respond from on-arvo
@@ -2479,6 +2484,22 @@
   ?~  close  result
   =/  param=@t  (crip (scag u.close rest))
   $(t (slag +(u.close) rest), result (~(put in result) param))
+::
+::  +json-without-keys: return args minus any top-level keys in exclude.
+::  Used to keep path-template params out of the request body — OpenAPI
+::  semantics put path params in the URL, not the payload, and a body
+::  field that shares a name with a path param would otherwise get
+::  silently clobbered by the path value when mcp-proxy flattens the
+::  tool-input back into a JSON body.
+++  json-without-keys
+  |=  [args=json exclude=(set @t)]
+  ^-  json
+  ?.  ?=(%o -.args)  args
+  =/  keys=(list @t)  ~(tap in exclude)
+  =/  m  p.args
+  |-  ^-  json
+  ?~  keys  [%o m]
+  $(keys t.keys, m (~(del by m) i.keys))
 ::
 ++  build-all-args-query
   |=  [args=json exclude=(set @t)]
