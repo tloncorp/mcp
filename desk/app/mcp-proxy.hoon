@@ -796,9 +796,19 @@
             (scot %tas sid)
             '. Set the upstream URL in mcp-proxy or include servers[0].url in the OpenAPI spec."}'
         ==
+      ::  pull the operation's parameter list once; used for both the
+      ::  query string (only `in: query` args belong there) and the
+      ::  body (path + query args must be excluded from the payload).
+      =/  op-params=(list json)
+        ?.  ?=([%o *] operation.u.op)  ~
+        =/  p=(unit json)  (~(get by p.operation.u.op) 'parameters')
+        ?~  p  ~
+        ?.  ?=([%a *] u.p)  ~
+        p.u.p
+      =/  query-names=(set @t)  (query-param-names op-params)
       =/  api-url=@t
         =/  base-with-path=@t  (build-api-url base-url path.u.op args)
-        =/  qs=@t  (build-all-args-query args path-params)
+        =/  qs=@t  (build-query-string op-params args)
         (cat 3 base-with-path qs)
       ::  build body for POST/PUT/PATCH
       =/  req-method=method:http
@@ -811,9 +821,15 @@
             =(req-method %'PUT')
             =(req-method %'PATCH')
         ==
+      ::  strip both path-template params (host, name, id, …) and
+      ::  declared query params from the body. OpenAPI puts each
+      ::  parameter in exactly one place; sending them duplicated in
+      ::  the payload can silently clobber a body field that happens
+      ::  to share a name with one of them.
+      =/  body-exclude=(set @t)  (~(uni in path-params) query-names)
       =/  body=(unit octs)
         ?.  has-body  ~
-        `(as-octs:mimes:html (en:json:html args))
+        `(as-octs:mimes:html (en:json:html (json-without-keys args body-exclude)))
       =?  out-headers  has-body
         [['content-type' 'application/json'] out-headers]
       ::  store eyre-id and use behn to respond from on-arvo
@@ -2382,6 +2398,22 @@
 ::
 ::  build query string from OpenAPI params + args
 ::
+::  +query-param-names: read OpenAPI parameters, return the set of
+::  names declared `in: query`. Used both to build the query string
+::  and to keep those names out of the body.
+++  query-param-names
+  |=  params=(list json)
+  ^-  (set @t)
+  %-  silt
+  %+  murn  params
+  |=  param=json
+  ^-  (unit @t)
+  ?.  ?=(%o -.param)  ~
+  ?.  =('query' (get-json-string param 'in'))  ~
+  =/  nm=@t  (get-json-string param 'name')
+  ?:  =('' nm)  ~
+  `nm
+::
 ++  build-query-string
   |=  [params=(list json) args=json]
   ^-  @t
@@ -2395,9 +2427,14 @@
     =/  pname=@t  (get-json-string param 'name')
     =/  val=(unit json)  (~(get by p.args) pname)
     ?~  val  ~
-    ?.  ?=(%s -.u.val)  ~
-    ?:  =('' p.u.val)  ~
-    `(cat 3 pname (cat 3 '=' p.u.val))
+    =/  v=@t
+      ?+  -.u.val  ''
+        %s  p.u.val
+        %n  p.u.val
+        %b  ?:(p.u.val 'true' 'false')
+      ==
+    ?:  =('' v)  ~
+    `(cat 3 pname (cat 3 '=' v))
   ?~  query-parts  ''
   =/  result=@t  i.query-parts
   =/  rest=(list @t)  t.query-parts
@@ -2479,6 +2516,22 @@
   ?~  close  result
   =/  param=@t  (crip (scag u.close rest))
   $(t (slag +(u.close) rest), result (~(put in result) param))
+::
+::  +json-without-keys: return args minus any top-level keys in exclude.
+::  Used to keep path-template params out of the request body — OpenAPI
+::  semantics put path params in the URL, not the payload, and a body
+::  field that shares a name with a path param would otherwise get
+::  silently clobbered by the path value when mcp-proxy flattens the
+::  tool-input back into a JSON body.
+++  json-without-keys
+  |=  [args=json exclude=(set @t)]
+  ^-  json
+  ?.  ?=(%o -.args)  args
+  =/  keys=(list @t)  ~(tap in exclude)
+  =/  m  p.args
+  |-  ^-  json
+  ?~  keys  [%o m]
+  $(keys t.keys, m (~(del by m) i.keys))
 ::
 ++  build-all-args-query
   |=  [args=json exclude=(set @t)]
