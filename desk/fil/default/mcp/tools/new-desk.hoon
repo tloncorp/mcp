@@ -1,9 +1,10 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit-mcp/new-desk'
+:*  'dojo/new-desk'
     '''
     Create a new desk with some default provisions.
+    Will return Dojo prompt >= if successful.
     '''
     %-  my
     :~  :-  'desk'
@@ -24,86 +25,24 @@
     ?>  ?=([%string @t] u.desk-arg)
     =/  dek=@tas  (@tas p.u.desk-arg)
     ;<  =bowl:rand  bind:m  get-bowl:io
-    ;<  ~  bind:m
-      %:  send-raw-card:io
-          %pass   /make-new-desk
-          %agent  [our.bowl %hood]
-          %poke   %helm-pass
-          !>  ^-  note-arvo
-          %^    new-desk:cloy
-             dek
-            ~
-          %-  ~(gas by *(map path page:clay))
-          |^  ^-  (list [path page:clay])
-              %+  welp
-                ::   build agent
-                :~  %+  file-page
-                      /[q.byk.bowl]/fil/gall/single/hoon
-                    /app/[dek]/hoon
-                ==
-              ::  import dependencies
-              %-  turn
-              :_  make-page
-              ^-  (list path)
-              :~  /base/sys/kelvin
-                  /base/mar/bill/hoon
-                  /base/mar/hoon/hoon
-                  /base/mar/mime/hoon
-                  /base/mar/noun/hoon
-                  /[q.byk.bowl]/lib/dbug/hoon
-                  /[q.byk.bowl]/lib/verb/hoon
-                  /[q.byk.bowl]/sur/verb/hoon
-                  /[q.byk.bowl]/mar/kelvin/hoon
-                  /[q.byk.bowl]/lib/skeleton/hoon
-                  /[q.byk.bowl]/lib/default-agent/hoon
-              ==
-          ::
-          ++  make-page
-            |=  pax=path
-            ^-  [path page:clay]
-            ?>  ?=([@tas *] pax)
-            :-  t.pax
-            :-  (rear pax)
-            ~|  [%missing-file pax]
-            .^  noun
-                %cx
-                (scot %p our.bowl)
-                i.pax
-                (scot %da now.bowl)
-                t.pax
-            ==
-          ::
-          ++  file-page
-            |=  [src=path dst=path]
-            ^-  [path page:clay]
-            ?>  ?=([@tas *] src)
-            ?>  ?=([@tas *] dst)
-            ?>  =((rear src) (rear dst))
-            :-  dst
-            :-  (rear src)
-            ~|  [%missing-file src]
-            .^  noun
-                %cx
-                (scot %p our.bowl)
-                i.src
-                (scot %da now.bowl)
-                t.src
-            ==
-          --
+    =/  tools=(list tool:mcp)
+      .^  (list tool:mcp)
+          %gx
+          /(scot %p our.bowl)/mcp-server/(scot %da now.bowl)/mcp/tools/noun
       ==
-    ::  ;<  ~  bind:m  (take-poke-ack:io /make-new-desk)
-    ::  write desk.bill
-    ;<  ~  bind:m
-      %:  send-raw-card:io
-          %pass   /write-desk-bill
-          %arvo   %c  %info
-          [dek %& [/desk/bill %ins %bill !>(~[dek])]~]
-      ==
-    ::  ;<  ~  bind:m  (take-poke-ack:io /write-desk-bill)
-    %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+(crip "Added new desk {<dek>}")]
+    =/  dojo-tools=(list tool:mcp)
+      %+  murn  tools
+      |=  =tool:mcp
+      ^-  (unit tool:mcp)
+      ?.  =(name.tool 'dojo/command')
+        ~
+      `tool
+    ?~  dojo-tools
+      ~|(%missing-dojo-command-tool !!)
+    ?:  (gth 1 (lent dojo-tools))
+      ~|(%multiple-dojo-command-tools !!)
+    %-  thread-builder.i.dojo-tools
+    %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
+    :~  ['command' [%string (crip "|new-desk {<dek>}")]]
     ==
 ==

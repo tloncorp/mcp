@@ -1,29 +1,28 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'dojo/nuke-agent'
+:*  'dojo/revive-desk'
     '''
-    Permanently wipe the state of a Gall agent.
-    You can also nuke an entire desk.
+    Boot the agents on a nuked / suspended desk.
     '''
     %-  my
-    :~  :-  'agent'
+    :~  :-  'desk'
         :-  %string
         '''
-        Gall agent to nuke (e.g. 'graph-store' to nuke %graph-store).
+        Desk name to revive (e.g. 'hark' to revive %hark).
         '''
     ==
-    ~['agent']
+    ~['desk']
     ^-  thread-builder:tool:mcp
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
-    =/  agent=(unit argument:tool:mcp)  (~(get by args) 'agent')
-    ?~  agent
-      ~|(%missing-agent !!)
-    ?>  ?=([%string @t] u.agent)
-    =/  agt=@tas  (@tas p.u.agent)
+    =/  desk-arg=(unit argument:tool:mcp)  (~(get by args) 'desk')
+    ?~  desk-arg
+      ~|(%missing-desk !!)
+    ?>  ?=([%string @t] u.desk-arg)
+    =/  dek=@tas  (@tas p.u.desk-arg)
     ;<  =bowl:rand  bind:m  get-bowl:io
     =/  tools=(list tool:mcp)
       .^  (list tool:mcp)
@@ -43,6 +42,6 @@
       ~|(%multiple-dojo-command-tools !!)
     %-  thread-builder.i.dojo-tools
     %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
-    :~  ['command' [%string (crip "|nuke {<agt>}, =hard &")]]
+    :~  ['command' [%string (crip "|revive {<dek>}")]]
     ==
 ==

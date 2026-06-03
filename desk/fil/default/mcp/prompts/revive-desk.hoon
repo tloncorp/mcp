@@ -1,11 +1,11 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Revive agent'
-    'revive-agent'
+:*  'Revive desk'
+    'revive-desk'
     '''
-    Revive (re-initialize) a nuked Gall agent on this ship.
+    Boot the agents on a nuked / suspended desk.
     '''
-    :~  :*  'agent'
+    :~  :*  'desk'
             'Desk name to revive (e.g. "hark" to revive %hark)'
             &
         ==
@@ -13,17 +13,17 @@
     ~
     |=  args=(map name:argument:prompt:mcp @t)
     ^-  (list message:prompt:mcp)
-    =/  agent  (~(get by args) 'agent')
+    =/  desk  (~(get by args) 'desk')
     :~  :-  %user
         :-  %text
         %-  some
-        ?~  agent
+        ?~  desk
          '''
-         Use your revive-agent tool to revive the agent we're working on.
+         Use your revive-desk tool to revive the desk we're working on.
          '''
         %-  crip
         """
-        Use your revive-agent tool to revive %{(trip u.agent)}.
+        Use your revive-desk tool to revive %{(trip u.desk)}.
         """
     ==
 ==

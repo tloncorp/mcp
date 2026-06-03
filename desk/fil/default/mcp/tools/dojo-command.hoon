@@ -180,7 +180,7 @@
 --
 ::
 ^-  tool:mcp
-:*  'urbit-mcp/dojo-command'
+:*  'dojo/command'
   '''
   Run one string in Dojo through the %sole command-line protocol and return
   the text emitted before Dojo reports the next prompt.
@@ -194,7 +194,8 @@
       :-  'timeout-seconds'
       :-  %number
       '''
-      Optional timeout in seconds while waiting for Dojo output. Defaults to 10.
+      Optional timeout in seconds while waiting for Dojo output.
+      Defaults to 10.
       '''
   ==
   ~['command']

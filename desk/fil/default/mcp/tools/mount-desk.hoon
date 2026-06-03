@@ -1,7 +1,7 @@
 /-  mcp, spider
 /+  io=strandio
 ^-  tool:mcp
-:*  'urbit-mcp/mount-desk'
+:*  'dojo/mount-desk'
     '''
     Mount a desk on this ship.
     '''
@@ -10,6 +10,7 @@
         :-  %string
         '''
         Desk to mount (e.g. 'base' to mount %base).
+        Will return Dojo prompt >= if successful.
         '''
     ==
     ~['desk']
@@ -22,18 +23,26 @@
     ?~  desk-arg
       ~|(%missing-desk !!)
     ?>  ?=([%string @t] u.desk-arg)
-    =/  desk=@tas  (@tas p.u.desk-arg)
-    ;<  our=@p   bind:m  get-our:io
-    ;<  now=@da  bind:m  get-time:io
-    ;<  ~  bind:m
-      %:  poke-our:io
-          %hood  %kiln-mount
-          !>([(en-beam [our desk [%da now]] /) desk])
+    =/  dek=@tas  (@tas p.u.desk-arg)
+    ;<  =bowl:rand  bind:m  get-bowl:io
+    =/  tools=(list tool:mcp)
+      .^  (list tool:mcp)
+          %gx
+          /(scot %p our.bowl)/mcp-server/(scot %da now.bowl)/mcp/tools/noun
       ==
-    %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+(crip "Mounted %{(trip p.u.desk-arg)} desk")]
+    =/  dojo-tools=(list tool:mcp)
+      %+  murn  tools
+      |=  =tool:mcp
+      ^-  (unit tool:mcp)
+      ?.  =(name.tool 'dojo/command')
+        ~
+      `tool
+    ?~  dojo-tools
+      ~|(%missing-dojo-command-tool !!)
+    ?:  (gth 1 (lent dojo-tools))
+      ~|(%multiple-dojo-command-tools !!)
+    %-  thread-builder.i.dojo-tools
+    %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
+    :~  ['command' [%string (crip "|mount {<dek>}")]]
     ==
 ==
