@@ -39,4 +39,5 @@ git module base-dev:
     - pkg/base-dev/mar/json.hoon
     - pkg/base-dev/sur/verb.hoon
     - pkg/base-dev/sur/spider.hoon
+    - pkg/base-dev/mar/ship.hoon
 
