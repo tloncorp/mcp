@@ -1,50 +1,62 @@
+/-  *json-rpc
 |%
 ++  rpc
   |%
-  ++  result
-    |=  [id=@ta result=json]
-    %-  pairs:enjs:format
-    :~  ['id' n+id]
-        ['jsonrpc' s+'2.0']
-        ['result' result]
-    ==
-  ++  error
-    |%
-    ++  code
-    |%
-    ++  parse-error       ~.-32700
-    ++  invalid-request   ~.-32600
-    ++  method-not-found  ~.-32601
-    ++  invalid-params    ~.-32602
-    ++  internal-error    ~.-32603
-    --
-    ++  make
-      |=  [id=(unit @ta) code=@ta message=@t]
-      ^-  json
+  ++  make-response
+    |=  res=response
+    ^-  json
+    ?-    -.res
+        %result
       %-  pairs:enjs:format
-      :~  ['id' n+?~(id *@ta u.id)]
+      :~  ['id' n+id.res]
+          ['jsonrpc' s+'2.0']
+          ['result' result.res]
+      ==
+    ::
+        %error
+      %-  pairs:enjs:format
+      :~  ['id' n+id.res]
           ['jsonrpc' s+'2.0']
           :-  'error'
           %-  pairs:enjs:format
-          :~  ['code' n+code]
-              ['message' s+message]
+          %+  welp
+            :~  ['code' n+code.res]
+                ['message' s+message.res]
+            ==
+          ?~  data.res
+            ~
+          :~  ['data' u.data.res]
           ==
       ==
+    ==
+  ++  result
+    |=  [id=@t res=json]
+    (make-response [%result id res])
+  ++  error
+    |%
+    ++  code
+      |%
+      ++  parse-error       ~.-32700
+      ++  invalid-request   ~.-32600
+      ++  method-not-found  ~.-32601
+      ++  invalid-params    ~.-32602
+      ++  internal-error    ~.-32603
+      --
     ++  parse
-      |=  [id=(unit @ta) message=@t]
-      (make id parse-error:code message)
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id parse-error:code message data])
     ++  request
-      |=  [id=(unit @ta) message=@t]
-      (make id invalid-request:code message)
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id invalid-request:code message data])
     ++  method
-      |=  [id=(unit @ta) message=@t]
-      (make id method-not-found:code message)
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id method-not-found:code message data])
     ++  params
-      |=  [id=(unit @ta) message=@t]
-      (make id invalid-params:code message)
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id invalid-params:code message data])
     ++  internal
-      |=  [id=(unit @ta) message=@t]
-      (make id internal-error:code message)
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id internal-error:code message data])
     --
   --
 --
