@@ -10,7 +10,7 @@ const Dependency = struct {
     picks: []const []const u8,
 };
 
-const dependencies = [_]Dependency{
+const dependencies = [3]Dependency{
     .{
         .name = "pretty-file",
         .url = "https://github.com/urbit/urbit",
