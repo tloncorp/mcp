@@ -23,7 +23,7 @@ Note that this will configure a hard-coded cookie which will eventually expire. 
 ### 1. Build and Install
 
 - *Requires a running [Urbit](https://docs.urbit.org/get-on-urbit) ship, real or fake, running on a machine you have terminal access to.*
-- *Requires [peru](https://github.com/buildinspace/peru) package manager. Install and set that up if you don't have it already. Make sure `peru --version` works.*
+- *Requires [Zig](https://ziglang.org/download/) 0.15 or newer. Make sure `zig version` works.*
 
 Create and mount the desk on your Urbit ship:
 
@@ -32,11 +32,11 @@ Create and mount the desk on your Urbit ship:
 > |mount %mcp
 ```
 
-In the `urbit-mcp` folder, run the [build script](build.sh). By default this will install dependencies into `/dist` in this folder. Use the `-p` argument to additionally copy the %mcp source and its dependencies into your ship's desk. This script will take a minute if it's your first time running it.
+In the `urbit-mcp` folder, run `zig build`. By default this will install dependencies into `/dist` in this folder. Use the `-Ddesk` option to additionally replace the contents of your ship's desk with your source desk.
 
 ```bash
 $ cd urbit-mcp
-$ build.sh -p ~/path/to/zod/mcp
+$ zig build -Ddesk=~/path/to/zod/mcp
 ```
 
 ```dojo
@@ -148,7 +148,7 @@ git rebase --exec "true" HEAD~N
 
 ### Build Commands
 
-- `./build.sh` - Build full desk
-- `./build.sh build-dev` - Build dependencies
-- `./build.sh clean` - Clean build directories
-- `./build.sh -p /path/to/desk` - Build and copy to a ship's desk
+- `zig build` - Build `/desk` and dependencies into `/dist`
+- `zig build clean` - Remove `/dist`
+- `zig build clear` - Remove `/dist` and cached dependencies from `.zig-cache/desk-deps`
+- `zig build -Ddesk=~/path/to/desk` - Build, clean the target desk directory, and copy `dist` into it; supports absolute and relative paths
