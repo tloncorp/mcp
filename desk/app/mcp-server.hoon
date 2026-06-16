@@ -225,29 +225,82 @@
           %handle-http-request
         (handle-req !<([@ta inbound-request:eyre] vase))
       ::
-          %import-tools
+          ?(%import-tools %import-prompts %import-resources)
         ?>  =(src our):bowl
         =/  desk=@t  !<(@t vase)
-        =/  imported=(list tool:mcp)
-          .^  (list tool:mcp)
-              %gx
-              /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/tools/noun
+        =/  notif=@t
+          ?-  mark
+            %import-tools      'notifications/tools/list_changed'
+            %import-prompts    'notifications/prompts/list_changed'
+            %import-resources  'notifications/resources/list_changed'
           ==
-        :-  (broadcast-list-changed bowl sse-sessions 'notifications/tools/list_changed')
-        %=  this
-          tools   %-  silt
-                  %+  weld
-                    imported
-                  %+  murn
-                    ~(tap in tools)
-                  |=  old=tool:mcp
-                  ^-  (unit tool:mcp)
-                  ?:  %+  lien
-                        imported
-                      |=  new=tool:mcp
-                      =(name.new name.old)
-                    ~
-                  `old
+        :-  (broadcast-list-changed bowl sse-sessions notif)
+        ?-    mark
+            %import-tools
+          =/  imported=(list tool:mcp)
+            .^  (list tool:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/tools/noun
+            ==
+          %=  this
+            tools   %-  silt
+                    %+  weld
+                      imported
+                    %+  murn
+                      ~(tap in tools)
+                    |=  old=tool:mcp
+                    ^-  (unit tool:mcp)
+                    ?:  %+  lien
+                          imported
+                        |=  new=tool:mcp
+                        =(name.new name.old)
+                      ~
+                    `old
+          ==
+        ::
+            %import-prompts
+          =/  imported=(list prompt:mcp)
+            .^  (list prompt:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/prompts/noun
+            ==
+          %=  this
+            prompts  %-  silt
+                     %+  weld
+                       imported
+                     %+  murn
+                       ~(tap in prompts)
+                     |=  old=prompt:mcp
+                     ^-  (unit prompt:mcp)
+                     ?:  %+  lien
+                           imported
+                         |=  new=prompt:mcp
+                         =(title.new title.old)
+                       ~
+                     `old
+          ==
+        ::
+            %import-resources
+          =/  imported=(list resource:mcp)
+            .^  (list resource:mcp)
+                %gx
+                /(scot %p our.bowl)/[desk]/(scot %da now.bowl)/mcp/resources/noun
+            ==
+          %=  this
+            resources  %-  silt
+                       %+  weld
+                         imported
+                       %+  murn
+                         ~(tap in resources)
+                       |=  old=resource:mcp
+                       ^-  (unit resource:mcp)
+                       ?:  %+  lien
+                             imported
+                           |=  new=resource:mcp
+                           =(uri.new uri.old)
+                         ~
+                       `old
+          ==
         ==
       ::
           ?(%add-tool %add-prompt %add-resource)
