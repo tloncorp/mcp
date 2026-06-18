@@ -19,8 +19,7 @@
     =/  m  (strand:spider ,vase)
     ^-  form:m
     =/  desk-arg=(unit argument:tool:mcp)  (~(get by args) 'desk')
-    ?~  desk-arg
-      ~|(%missing-desk !!)
+    ?~  desk-arg  (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string @t] u.desk-arg)
     =/  dek=@tas  (@tas p.u.desk-arg)
     ;<  =bowl:rand  bind:m  get-bowl:io
@@ -37,9 +36,7 @@
         ~
       `tool
     ?~  dojo-tools
-      ~|(%missing-dojo-command-tool !!)
-    ?:  (gth 1 (lent dojo-tools))
-      ~|(%multiple-dojo-command-tools !!)
+      (pure:m !>([%error %missing-dojo-command-tool-in-mcp-server ~]))
     %-  thread-builder.i.dojo-tools
     %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
     :~  ['command' [%string (crip "|revive {<dek>}")]]

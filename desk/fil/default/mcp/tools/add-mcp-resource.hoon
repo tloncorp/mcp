@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio
-=,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
 :*  'urbit/mcp/add-mcp-resource'
     '''
@@ -24,14 +23,11 @@
     =/  des=(unit argument:tool:mcp)   (~(get by args) 'desc')
     =/  mime=(unit argument:tool:mcp)  (~(get by args) 'mime-type')
     =/  aud=(unit argument:tool:mcp)   (~(get by args) 'audience')
-    ?~  uri
-      ~|(%missing-uri !!)
+    ?~  uri  (pure:m !>([%error %missing-resource-uri ~]))
     ?>  ?=([%string @t] u.uri)
-    ?~  nam
-      ~|(%missing-name !!)
+    ?~  nam  (pure:m !>([%error %missing-resource-name ~]))
     ?>  ?=([%string @t] u.nam)
-    ?~  des
-      ~|(%missing-desc !!)
+    ?~  des  (pure:m !>([%error %missing-resource-description ~]))
     ?>  ?=([%string @t] u.des)
     =/  mime-type=(unit @t)
       ?~  mime
@@ -51,19 +47,19 @@
         ~
       `[audience ~ ~]
     ::
-    ;<  =bowl:rand  bind:m  get-bowl:io
+    ;<  our=ship  bind:m  get-our:io
     ;<  ~  bind:m
       %-  send-raw-card:io
       :*  %pass   /add-resource
-          %agent  [our.bowl %mcp-server]
+          %agent  [our %mcp-server]
           %poke   %add-resource
           !>([p.u.uri p.u.nam p.u.des mime-type annotations])
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-resource)
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+'Resource added!']
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text 'Resource added!']
     ==
 ==

@@ -20,8 +20,7 @@
     =/  m  (strand:spider ,vase)
     ^-  form:m
     =/  agent=(unit argument:tool:mcp)  (~(get by args) 'agent')
-    ?~  agent
-      ~|(%missing-agent !!)
+    ?~  agent  (pure:m !>([%error %missing-agent ~]))
     ?>  ?=([%string @t] u.agent)
     =/  agt=@tas  (@tas p.u.agent)
     ;<  =bowl:rand  bind:m  get-bowl:io
@@ -38,9 +37,7 @@
         ~
       `tool
     ?~  dojo-tools
-      ~|(%missing-dojo-command-tool !!)
-    ?:  (gth 1 (lent dojo-tools))
-      ~|(%multiple-dojo-command-tools !!)
+      (pure:m !>([%error %dojo-command-tool-not-in-mcp-server ~]))
     %-  thread-builder.i.dojo-tools
     %-  ~(gas by *(map name:parameter:tool:mcp argument:tool:mcp))
     :~  ['command' [%string (crip "|nuke {<agt>}, =hard &")]]

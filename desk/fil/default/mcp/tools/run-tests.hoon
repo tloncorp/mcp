@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio, libstrand=strand
-=,  strand-fail=strand-fail:libstrand
 ^-  tool:mcp
 :*  'urbit/mcp/run-tests'
     '''
@@ -118,11 +117,9 @@
     ;<  =bowl:rand  bind:m  get-bowl:io
     =/  desk-arg=(unit argument:tool:mcp)  (~(get by args) 'desk')
     =/  path-arg=(unit argument:tool:mcp)  (~(get by args) 'path')
-    ?~  desk-arg
-      (strand-fail %missing-desk ~)
+    ?~  desk-arg  (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string @t] u.desk-arg)
-    ?~  path-arg
-      (strand-fail %missing-path ~)
+    ?~  path-arg  (pure:m !>([%error %missing-path ~]))
     ?>  ?=([%string @t] u.path-arg)
     =/  desk=@tas  (@tas p.u.desk-arg)
     =/  test-path=path  (stab p.u.path-arg)
@@ -164,10 +161,13 @@
           'No tests found'
         (of-wain:format all-results)
       %-  pure:m
-      !>  ^-  json
-      %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          ['text' s+final-output]
+      !>  ^-  response:tool:mcp
+      :-  %result
+      :-  %unstructured
+      :~  :-  %text
+          ?~  all-results
+            'No tests found'
+          (of-wain:format all-results)
       ==
     =/  [test-result-ok=? test-tang=tang result-text=@t]
       (run-test path.i.tests func.i.tests)

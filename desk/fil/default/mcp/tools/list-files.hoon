@@ -26,8 +26,8 @@
   ^-  form:m
   =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
   =/  pax=(unit argument:tool:mcp)  (~(get by args) 'path')
-  ?~  dek  ~|(%missing-desk !!)
-  ?~  pax  ~|(%missing-path !!)
+  ?~  dek  (pure:m !>([%error %missing-desk ~]))
+  ?~  pax  (pure:m !>([%error %missing-path ~]))
   ?>  ?=([%string *] u.dek)
   ?>  ?=([%string *] u.pax)
   ;<  =bowl:rand  bind:m  get-bowl:io
@@ -38,18 +38,10 @@
           /(scot %p our.bowl)/[(@tas p.u.dek)]/(scot %da now.bowl)
         (stab p.u.pax)
     ==
-  =/  file-paths-as-cords=(list @t)
-    %+  turn  file-list
-    |=  =path
-    (spat path)
-  =/  formatted-output=@t
-    ?~  file-paths-as-cords
-      'No files found'
-    (of-wain:format file-paths-as-cords)
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      ['text' s+formatted-output]
-  ==
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %structured
+  %-  frond:enjs:format
+  [%files a+(turn file-list |=(=path s+(spat path)))]
 ==

@@ -205,7 +205,7 @@
           %+  turn
             .^  (list path)
                 %ct
-                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp
+                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp/tools
             ==
           |=  pax=path
           ^-  beam
@@ -878,7 +878,6 @@
         (internal:error:rpc rpc-id.pole (crip (print-tang-to-wain tang.p.p.sign-arvo)) ~)
       ?>  ?=([%khan %arow %.y %noun *] sign-arvo)
       =/  [%khan %arow %.y %noun =vase]  sign-arvo
-      =/  result=json  !<(json vase)
       ?+  feat.pole
         :_  this
         %+  send-event
@@ -886,76 +885,112 @@
         (internal:error:rpc rpc-id.pole 'Unknown response type' ~)
       ::
           %tool
-        =/  response-text=(unit @t)
-          ?+  result
-            ~
-          ::
-              [%s *]
-            `p.result
-          ::
-              [%o *]
-            =/  typ=(unit @t)  (~(deg jo:jut result) /type so:dejs:format)
-            =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
-            ?~  typ
-              ~
-            ?~  txt
-              ~
-            ?.  =(u.typ 'text')
-              ~
-            txt
-          ==
-        ?~  response-text
-          :_  this
-          %+  send-event
-            eyre-id.pole
-          (internal:error:rpc rpc-id.pole 'Invalid tool response format' ~)
+        =/  =response:tool:mcp  !<(response:tool:mcp vase)
         :_  this
         %+  send-event
           eyre-id.pole
-        %-  pairs:enjs:format
-        :~  ['id' n+rpc-id.pole]
-            ['jsonrpc' s+'2.0']
-            :-  'result'
-            %-  pairs:enjs:format
-            :~  :-  'content'
+        ?-    -.response
+            %error
+          ::  XX https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling
+          (internal:error:rpc rpc-id.pole message.response data.response)
+        ::
+            %result
+          %-  pairs:enjs:format
+          :~  ['id' n+rpc-id.pole]
+              ['jsonrpc' s+'2.0']
+              :-  'result'
+              ?-    response
+                  [%result %structured *]
+                %-  frond:enjs:format
+                ['structuredContent' json.response]
+              ::
+                  [%result %unstructured *]
+                %-  frond:enjs:format
+                :-  'content'
                 :-  %a
-                :~  %-  pairs:enjs:format
-                    :~  ['type' s+'text']
-                        ['text' s+u.response-text]
-                    ==
+                %+  turn
+                  results.response
+                |=  =result:tool:mcp
+                ^-  json
+                ?-    -.result
+                    %text
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'text']
+                      ['text' s+text.result]
+                  ==
+                ::
+                    %audio
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'audio']
+                      ['data' s+data.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %resource-link
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'resource_link']
+                      ['uri' s+uri.result]
+                      ['name' s+name.result]
+                      ['description' s+desc.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %image
+                  %-  pairs:enjs:format
+                  ::  XX parse annotations
+                  :~  ['type' s+'image']
+                      ['data' s+data.result]
+                      ['mimeType' s+mime.result]
+                  ==
+                ::
+                    %resource
+                  ::  XX parse annotations
+                  %-  pairs:enjs:format
+                  :~  ['type' s+'resource']
+                      :-  'resource'
+                      %-  pairs:enjs:format
+                      :~  ['uri' s+uri.result]
+                          ['mimeType' s+mime.result]
+                          ['text' s+text.result]
+                      ==
+                  ==
                 ==
-            ==
+              ==
+              ['isError' b+.n]
+          ==
         ==
       ::
           %resource
-        =/  uri=(unit @t)  (~(deg jo:jut result) /uri so:dejs:format)
-        =/  mym=(unit @t)  (~(deg jo:jut result) /mime-type so:dejs:format)
-        =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
-        ?~  uri
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing uri in resource response' ~))
-        ?~  mym
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing mimeType in resource response' ~))
-        ?~  txt
-          :_  this
-          (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing text in resource response' ~))
-        :_  this
-        %:  send-event
-            eyre-id.pole
-            %-  result:rpc
-            :-  rpc-id.pole
-            %-  pairs:enjs:format
-            :~  :-  'contents'
-                :-  %a
-                :~  %-  pairs:enjs:format
-                    :~  ['uri' s+u.uri]
-                        ['mimeType' s+u.mym]
-                        ['text' s+u.txt]
-                    ==
-                ==
-            ==
-        ==
+        `this
+        ::  =/  =response:resource:mcp  !<(response:resource:mcp vase)
+        ::  =/  uri=(unit @t)  (~(deg jo:jut result) /uri so:dejs:format)
+        ::  =/  mym=(unit @t)  (~(deg jo:jut result) /mime-type so:dejs:format)
+        ::  =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
+        ::  ?~  uri
+          ::  :_  this
+          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing uri in resource response' ~))
+        ::  ?~  mym
+          ::  :_  this
+          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing mimeType in resource response' ~))
+        ::  ?~  txt
+          ::  :_  this
+          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing text in resource response' ~))
+        ::  :_  this
+        ::  %:  send-event
+            ::  eyre-id.pole
+            ::  %-  result:rpc
+            ::  :-  rpc-id.pole
+            ::  %-  pairs:enjs:format
+            ::  :~  :-  'contents'
+                ::  :-  %a
+                ::  :~  %-  pairs:enjs:format
+                    ::  :~  ['uri' s+u.uri]
+                        ::  ['mimeType' s+u.mym]
+                        ::  ['text' s+u.txt]
+                    ::  ==
+                ::  ==
+            ::  ==
+        ::  ==
       ==
     ::
         [%iris %http-response *]

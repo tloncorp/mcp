@@ -13,9 +13,8 @@
       bind:m
     get-bowl:io
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      ['text' s+(crip "{<our.bowl>}")]
-  ==
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %structured
+  (frond:enjs:format %ship s+(scot %p our.bowl))
 ==

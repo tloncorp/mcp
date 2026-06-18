@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio
-=,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
 :*  'urbit/mcp/install-app'
     '''
@@ -20,7 +19,7 @@
         App (desk) to install (e.g. 'mcp' to install %mcp).
         '''
     ==
-    ~['desk']
+    ~['ship' 'desk']
     ^-  thread-builder:tool:mcp
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
@@ -29,31 +28,25 @@
     =/  desk-arg=(unit argument:tool:mcp)
       (~(get by args) 'desk')
     ?~  desk-arg
-      (strand-fail %missing-desk ~)
+      (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string @t] u.desk-arg)
     =/  dek=@tas  (@tas p.u.desk-arg)
     ;<  our=@p  bind:m  get-our:io
     =/  ship-arg=(unit argument:tool:mcp)
       (~(get by args) 'ship')
-    =/  who=(unit @t)
-      ?~  ship-arg  ~
-      ?>  ?=([%string @t] u.ship-arg)
-      `p.u.ship-arg
+    ?~  ship-arg
+      (pure:m !>([%error %missing-ship ~]))
+    ?>  ?=([%string @t] u.ship-arg)
     ;<  ~  bind:m
       %:  poke-our:io
           %hood
           %kiln-install
-          !>([dek ?~(who our (@p (slav %p u.who))) dek])
+          !>([dek (@p (slav %p p.u.ship-arg)) dek])
       ==
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        :-  'text'
-        :-  %s
-        %-  crip
-        """
-        Installing %{(trip dek)} from {?~(who (trip (@t (scot %p our))) (trip u.who))}.
-        """
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text (crip "Installing %{(trip dek)} from {(trip p.u.ship-arg)}.")]
     ==
 ==

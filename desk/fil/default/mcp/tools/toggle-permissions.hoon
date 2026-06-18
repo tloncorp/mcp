@@ -3,8 +3,7 @@
 ^-  tool:mcp
 :*  'urbit/mcp/toggle-permissions'
     '''
-    Make a node in the Clay filesystem public or private.
-    Publish a desk as an app by making the whole desk public.
+    Make a whole desk public or private.
     '''
     %-  my
     :~  :-  'desk'
@@ -12,57 +11,40 @@
         '''
         Target desk.
         '''
-        :-  'path'
-        :-  %string
-        '''
-        Target filepath. If /, the whole desk will be
-        public for anyone to read and install. If e.g. /fil, 
-        only the /fil directory in the desk will be public.
-        '''
         :-  'permissions'
         :-  %boolean
         '''
-        True is totally public, and false is
+        True makes the whole desk public, and false makes it
         private to the host ship.
         '''
     ==
-    ~['desk' 'path' 'permissions']
+    ~['desk' 'permissions']
     ^-  thread-builder:tool:mcp
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
     =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
-    =/  pax=(unit argument:tool:mcp)  (~(get by args) 'path')
     =/  per=(unit argument:tool:mcp)  (~(get by args) 'permissions')
     ?~  dek
-      ~|(%missing-desk !!)
-    ?~  pax
-      ~|(%missing-path !!)
+      (pure:m !>([%error %missing-desk ~]))
     ?~  per
-      ~|(%missing-permission-setting !!)
+      (pure:m !>([%error %missing-permission-setting ~]))
     ?>  ?=([%string @t] u.dek)
     ?>  ?=([%boolean ?] u.per)
-    ?>  ?=([%string @t] u.pax)
     ;<  ~  bind:m
       %:  poke-our:io
           %hood
           %kiln-permission
-          !>([(@tas p.u.dek) (stab p.u.pax) p.u.per])
+          !>([(@tas p.u.dek) / p.u.per])
       ==
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        :-  'text'
-        :-  %s
-        ?:  =('/' p.u.pax)
-            ?:  p.u.per
-              (crip "Made {(trip p.u.dek)} public")
-            (crip "Made {(trip p.u.dek)} private")
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  :-  %text
         ?:  p.u.per
-          (crip "Made {(trip p.u.dek)}'s {(trip p.u.pax)} public")
-        (crip "Made {(trip p.u.dek)}'s {(trip p.u.pax)} private")
+          (crip "Made {(trip p.u.dek)} public")
+        (crip "Made {(trip p.u.dek)} private")
     ==
 ==
-

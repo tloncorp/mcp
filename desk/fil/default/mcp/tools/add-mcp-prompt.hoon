@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio
-=,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
 :*  'urbit/mcp/add-mcp-prompt'
     '''
@@ -24,17 +23,13 @@
     =/  des=(unit argument:tool:mcp)          (~(get by args) 'desc')
     =/  prompt-args=(unit argument:tool:mcp)  (~(get by args) 'arguments')
     =/  msg=(unit argument:tool:mcp)          (~(get by args) 'messages-builder')
-    ?~  nam
-      ~|(%missing-name !!)
+    ?~  nam  (pure:m !>([%error %missing-prompt-name ~]))
     ?>  ?=([%string @t] u.nam)
-    ?~  tit
-      ~|(%missing-title !!)
+    ?~  tit  (pure:m !>([%error %missing-prompt-title ~]))
     ?>  ?=([%string @t] u.tit)
-    ?~  des
-      ~|(%missing-desc !!)
+    ?~  des  (pure:m !>([%error %missing-prompt-description ~]))
     ?>  ?=([%string @t] u.des)
-    ?~  msg
-      ~|(%missing-messages-builder !!)
+    ?~  msg  (pure:m !>([%error %missing-prompt-messages-builder ~]))
     ?>  ?=([%string @t] u.msg)
     =/  arguments=(list argument:prompt:mcp)
       ?~  prompt-args
@@ -65,15 +60,14 @@
                 spider=spider
                 strand=strand:spider
                 io=io
-                strand-fail=strand-fail:strand:spider
                 ..zuse
             ==
       (ream p.u.msg)
-    ;<  =bowl:rand  bind:m  get-bowl:io
+    ;<  our=ship  bind:m  get-our:io
     ;<  ~  bind:m
       %-  send-raw-card:io
       :*  %pass   /add-prompt
-          %agent  [our.bowl %mcp-server]
+          %agent  [our %mcp-server]
           %poke   %add-prompt
           !>  ^-  prompt:mcp
           :*  p.u.nam
@@ -86,9 +80,9 @@
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-prompt)
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+'Prompt added!']
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text 'Prompt added!']
     ==
 ==

@@ -1,6 +1,20 @@
 /-  mcp, spider
 /+  io=strandio, libstrand=strand
-=,  strand-fail=strand-fail:libstrand
+=>
+|%
+++  print-tang-to-wain
+  |=  =tang
+  ^-  wain
+  %-  zing
+  %+  turn
+    tang
+  |=  =tank
+  %+  turn
+    (wash [0 80] tank)
+  |=  =tape
+  (crip tape)
+--
+::
 ^-  tool:mcp
 :*  'urbit/mcp/scry-agent'
   '''
@@ -26,15 +40,19 @@
   =/  m  (strand:spider ,vase)
   ^-  form:m
   =/  gen=(unit argument:tool:mcp)  (~(get by args) 'agent')
-  ?~  gen  ~|(%missing-agent !!)
+  ?~  gen  (pure:m !>([%error %missing-agent ~]))
   =/  pax=(unit argument:tool:mcp)  (~(get by args) 'path')
-  ?~  pax  ~|(%missing-path !!)
+  ?~  pax  (pure:m !>([%error %missing-path ~]))
   ?>  ?=([%string @t] u.gen)
   ?>  ?=([%string @t] u.pax)
   ::  slap path to handle interpolation, +scot etc.
   =/  =path  !<(path (slap !>(.) (ream p.u.pax)))
   ?.  =(%json (rear path))
-    (strand-fail %scry-path-must-return-json ~)
+    %-  pure:m
+    !>  ^-  response:tool:mcp
+    :-  %error
+    :-  %scry-path-must-return-json
+    `(frond:enjs:format %path s+p.u.pax)
   ;<  =bowl:spider  bind:m  get-bowl:io
   =/  mule-result
     %-  mule
@@ -45,11 +63,19 @@
     ==
   ?>  ?=([? p=*] mule-result)
   ?.  -.mule-result
-    (strand-fail %scry-failed (tang p.mule-result))
+    %-  pure:m
+    !>  ^-  response:tool:mcp
+    :-  %error
+    :-  %scry-failed
+    %-  some
+    %-  frond:enjs:format
+    :-  %stack-trace
+    s+(of-wain:format (print-tang-to-wain (tang p.mule-result)))
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      ['text' s+(crip "{<(en:json:html (json p.mule-result))>}")]
-  ==
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %structured
+  %-  frond:enjs:format
+  :-  %result
+  (json p.mule-result)
 ==

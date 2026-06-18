@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio
-=,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
 :*  'urbit/mcp/add-mcp-tool'
     '''
@@ -25,17 +24,13 @@
     =/  des=(unit argument:tool:mcp)      (~(get by args) 'desc')
     =/  req-arg=(unit argument:tool:mcp)  (~(get by args) 'required')
     =/  ted=(unit argument:tool:mcp)      (~(get by args) 'thread-builder')
-    ?~  nam
-      ~|(%missing-name !!)
+    ?~  nam  (pure:m !>([%error %missing-tool-name ~]))
     ?>  ?=([%string @t] u.nam)
-    ?~  des
-      ~|(%missing-desc !!)
+    ?~  des  (pure:m !>([%error %missing-tool-description ~]))
     ?>  ?=([%string @t] u.des)
-    ?~  req-arg
-      ~|(%missing-required !!)
+    ?~  req-arg  (pure:m !>([%error %missing-required-tool-parameters ~]))
     ?>  ?=([%array *] u.req-arg)
-    ?~  ted
-      ~|(%missing-thread-builder !!)
+    ?~  ted  (pure:m !>([%error %missing-tool-thread-builder ~]))
     ?>  ?=([%string @t] u.ted)
     =/  req=(list @t)
       %+  turn  p.u.req-arg
@@ -43,8 +38,7 @@
       ?>  ?=([%string @t] argument)
       p.argument
     =/  param-arg=(unit argument:tool:mcp)  (~(get by args) 'parameters')
-    ?~  param-arg
-      ~|(%missing-parameters !!)
+    ?~  param-arg  (pure:m !>([%error %missing-tool-parameters ~]))
     ?>  ?=([%object *] u.param-arg)
     ::
     ;<  =beak  bind:m  get-beak:io
@@ -72,7 +66,6 @@
                 spider=spider
                 strand=strand:spider
                 io=io
-                strand-fail=strand-fail:strand:spider
                 ..zuse
             ==
       (ream p.u.ted)
@@ -85,9 +78,9 @@
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-tool)
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+'Tool added!']
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text 'Tool added!']
     ==
 ==

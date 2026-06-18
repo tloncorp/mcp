@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio
-=,  strand-fail=strand-fail:strand:spider
 ^-  tool:mcp
 :*  'urbit/mcp/poke-our-agent'
   '''
@@ -34,9 +33,9 @@
   =/  ant=(unit argument:tool:mcp)  (~(get by args) 'agent')
   =/  mar=(unit argument:tool:mcp)  (~(get by args) 'mark')
   =/  dat=(unit argument:tool:mcp)  (~(get by args) 'data')
-  ?~  ant  (strand-fail %missing-agent ~)
-  ?~  mar  (strand-fail %missing-mark ~)
-  ?~  dat  (strand-fail %missing-data ~)
+  ?~  ant  (pure:m !>([%error %missing-agent ~]))
+  ?~  mar  (pure:m !>([%error %missing-mark ~]))
+  ?~  dat  (pure:m !>([%error %missing-data ~]))
   ?>  ?=([%string *] u.ant)
   ?>  ?=([%string *] u.mar)
   ?>  ?=([%string *] u.dat)
@@ -47,9 +46,11 @@
         (slap !>(..zuse) (ream p.u.dat))
     ==
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      ['text' s+(crip "Successfully poked {<(trip p.u.ant)>} with {<(trip p.u.mar)>}")]
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %unstructured
+  :~  :-  %text
+      %-  crip
+      "Successfully poked {<(trip p.u.ant)>} with {<(trip p.u.mar)>}"
   ==
 ==

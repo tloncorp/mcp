@@ -35,6 +35,32 @@
         [%object p=(map @t argument)]
     ==
   ::
+  +$  response
+    $%  [%error message=@t data=(unit json)]
+        $:  %result
+            $%  [%structured =json]
+                [%unstructured results=(list result)]
+            ==
+        ==
+    ==
+  ::
+  +$  result
+    $%  [%text text=@t]
+        [%audio data=@t mime=@t]
+        [%resource-link uri=@t name=@t desc=@t mime=@t]
+        $:  %image
+            data=@t
+            mime=@t
+            annotations=(unit [audience=(list @t) priority=@rs])
+        ==
+        $:  %resource
+            uri=@t
+            mime=@t
+            text=@t
+            annotations=(unit [audience=(list @t) priority=@rs modified=@t])
+        ==
+    ==
+  ::
   ++  parameter
     |%
     +$  name  @t

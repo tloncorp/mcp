@@ -1,6 +1,5 @@
 /-  mcp, spider
 /+  io=strandio, pf=pretty-file
-=,  strand-fail=strand-fail:strand:spider
 =>
 |%
 ++  print-tang-to-wain
@@ -35,16 +34,14 @@
       bind:m
     get-bowl:io
   =/  pax=(unit argument:tool:mcp)  (~(get by args) 'path')
-  ?~  pax
-    (strand-fail %no-path ~)
+  ?~  pax  (pure:m !>([%error %missing-path ~]))
   ?>  ?=([%string @t] u.pax)
   =/  =path
     ?:  =('/' (snag 0 (trip p.u.pax)))
       (stab p.u.pax)
     (stab (crip (slag 1 (trip p.u.pax))))
   =/  dek=(unit argument:tool:mcp)   (~(get by args) 'desk')
-  ?~  dek
-    ~|(%missing-desk !!)
+  ?~  dek  (pure:m !>([%error %missing-desk ~]))
   ?>  ?=([%string @t] u.dek)
   =/  cast=(unit argument:tool:mcp)  (~(get by args) 'case')
   =/  cuse=(unit case)
@@ -73,13 +70,12 @@
         path
     ==
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      :-  'text'
-      :-  %s
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %unstructured
+  :~  :-  %text
       ?~  riot
-        'Failed to fetch file.'
+        'Failed to fetch file'
       %-  of-wain:format
       %-  print-tang-to-wain
       %-  pretty-file:pf

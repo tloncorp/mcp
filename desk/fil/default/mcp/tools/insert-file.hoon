@@ -31,16 +31,16 @@
     ^-  form:m
     =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
     ?~  dek
-      ~|(%missing-desk !!)
+      (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string @t] u.dek)
     =/  fil=(unit argument:tool:mcp)  (~(get by args) 'filepath')
     ?~  fil
-      ~|(%missing-filepath !!)
+      (pure:m !>([%error %missing-filepath ~]))
     ?>  ?=([%string @t] u.fil)
     =/  pax=path  (stab p.u.fil)
     =/  cot=(unit argument:tool:mcp)  (~(get by args) 'content')
     ?~  cot
-      ~|(%missing-content !!)
+      (pure:m !>([%error %missing-context ~]))
     ?>  ?=([%string @t] u.cot)
     ;<  =bowl:rand  bind:m  get-bowl:io
     ;<  ~  bind:m
@@ -50,9 +50,9 @@
           [(@tas p.u.dek) %& [pax %ins (rear pax) !>(p.u.cot)]~]
       ==
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+(crip "Inserted file {<pax>} into desk {<dek>}")]
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text (crip "Inserted file {<pax>} into desk {<dek>}")]
     ==
 ==

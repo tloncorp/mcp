@@ -12,62 +12,21 @@
     =/  m  (strand:spider ,vase)
     ^-  form:m
     =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
-    ?~  dek  ~|(%missing-desk !!)
+    ?~  dek
+      (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string *] u.dek)
-    ;<    =bowl:rand
-        bind:m
-      get-bowl:io
-    =/  prompts=(list prompt:mcp)
-      %-  zing
-      %+  murn
-        %~  tap  in
-        .^  (set [dude:gall ?])
-            %ge
-            /(scot %p our.bowl)/[p.u.dek]/(scot %da now.bowl)/$
-        ==
-      |=  [=dude:gall live=?]
-      ^-  (unit (list prompt:mcp))
-      ?.  live
-        ~
-      =/  mule-result=(each * (list tank))
-        %-  mule
-        |.
-        .^  (list prompt:mcp)
-            %gx
-            /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/prompts/noun
-        ==
-      ?.  -.mule-result
-        ~
-      =/  prompt-list  ;;((list prompt:mcp) p.mule-result)
-      ?~  prompt-list
-        ~
-      `prompt-list
-    ?~  prompts
-      %-  pure:m
-      !>  ^-  json
-      %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          ['text' s+(crip "No MCP Prompts found in {(trip p.u.dek)}")]
-      ==
+    ;<  =bowl:rand  bind:m  get-bowl:io
     ;<  ~  bind:m
-      %-  send-raw-cards:io
-      %+  turn
-        prompts
-      |=  =prompt:mcp
-      ^-  card:agent:gall
+      %-  send-raw-card:io
       :*  %pass   ~
           %agent  [our.bowl %mcp-server]
-          %poke   %add-prompt  !>(prompt)
+          %poke   %import-prompts  !>(p.u.dek)
       ==
-    =/  prompt-names
-      %+  turn
-        prompts
-      |=  =prompt:mcp
-      name.prompt
+    ;<  ~  bind:m  (take-poke-ack:io ~)
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+(crip "Imported MCP Prompts into %mcp-server: {<(of-wain:format prompt-names)>}")]
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text (crip "Poked %mcp-server to import prompts from %{(trip p.u.dek)}")]
     ==
 ==

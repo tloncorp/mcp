@@ -16,9 +16,9 @@
     ;<  ~  bind:m
       (send-raw-card:io [%pass /dojo-exit %arvo %d %belt [%ret ~]])
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+'|exit entered in Dojo']
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text '|exit entered in the Dojo']
     ==
 ==

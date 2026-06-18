@@ -81,7 +81,7 @@
     ^-  form:m
     =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
     ?~  dek
-      ~|(%missing-desk !!)
+      (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string *] u.dek)
     ;<  bo1=bowl:rand  bind:m  get-bowl:io
     =/  old-files=(list spur)
@@ -128,12 +128,7 @@
         `[%done `sign-arvo.u.in.tin]
       ==
     ?~  maybe-dill-sign
-      %-  pure:m
-      !>  ^-  json
-      %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          ['text' s+'No changes to commit!']
-      ==
+      (pure:m !>([%error %no-changes-to-commit ~]))
     ?>  ?=([%dill %logs *] u.maybe-dill-sign)
     ;<  ~  bind:m
       (send-raw-card:io [%pass /dill-logs %arvo %d %logs ~])
@@ -141,22 +136,26 @@
     ?-    told
         [%crud *]
       %-  pure:m
-      !>  ^-  json
-      %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          :-  'text'
-          :-  %s
-          %-  crip
-          "{<[%error p.told (print-tang-to-wain (prune-err q.told))]>}"
-      ==
+      !>  ^-  response:tool:mcp
+      :-  %error
+      :-  p.told
+      %-  some
+      :-  %a
+      %+  turn
+        (print-tang-to-wain (prune-err q.told))
+      |=  =cord
+      s+cord
     ::
         [%talk *]
       %-  pure:m
-      !>  ^-  json
-      %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          ['text' s+(crip "{<[%talk (print-tang-to-wain p.told)]>}")]
-      ==
+      !>  ^-  response:tool:mcp
+      :-  %result
+      :-  %structured
+      :-  %a
+      %+  turn
+        (print-tang-to-wain p.told)
+      |=  =cord
+      s+cord
     ::
         [%text *]
       ;<  bo2=bowl:rand  bind:m  get-bowl:io
@@ -219,27 +218,13 @@
           ~
         `spur
       %-  pure:m
-      !>  ^-  json
+      !>  ^-  response:tool:mcp
+      :-  %result
+      :-  %structured
       %-  pairs:enjs:format
-      :~  ['type' s+'text']
-          :-  'text'
-          :-  %s
-          %-  of-wain:format
-          :-  'Commit successful!'
-          %-  zing
-          :~  ?~  added
-                ~
-              :-  'Added:'
-              %+(turn added |=(=spur (spat spur)))
-              ?~  deleted
-                ~
-              :-  'Deleted:'
-              %+(turn deleted |=(=spur (spat spur)))
-              ?~  modified
-                ~
-              :-  'Modified:'
-              %+(turn modified |=(=spur (spat spur)))
-          ==
+      :~  ['added' [%a ?~(added ~ (turn added |=(=spur s+(spat spur))))]]
+          ['deleted' [%a ?~(deleted ~ (turn deleted |=(=spur s+(spat spur))))]]
+          ['modified' [%a ?~(modified ~ (turn modified |=(=spur s+(spat spur))))]]
       ==
     ==
 ==

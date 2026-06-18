@@ -12,7 +12,8 @@
     =/  m  (strand:spider ,vase)
     ^-  form:m
     =/  dek=(unit argument:tool:mcp)  (~(get by args) 'desk')
-    ?~  dek  ~|(%missing-desk !!)
+    ?~  dek
+      (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string *] u.dek)
     ;<  =bowl:rand  bind:m  get-bowl:io
     ;<  ~  bind:m
@@ -23,9 +24,9 @@
       ==
     ;<  ~  bind:m  (take-poke-ack:io ~)
     %-  pure:m
-    !>  ^-  json
-    %-  pairs:enjs:format
-    :~  ['type' s+'text']
-        ['text' s+(crip "Poked %mcp-server to import tools from %{(trip p.u.dek)}")]
+    !>  ^-  response:tool:mcp
+    :-  %result
+    :-  %unstructured
+    :~  [%text (crip "Poked %mcp-server to import tools from %{(trip p.u.dek)}")]
     ==
 ==

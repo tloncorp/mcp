@@ -2,7 +2,6 @@
 /+  io=strandio, libstrand=strand
 =,  sole
 =,  strand=strand:libstrand
-=,  strand-fail=strand-fail:libstrand
 =>
 |%
 ++  print-tang-to-wain
@@ -206,7 +205,7 @@
   ^-  form:m
   =/  cmd=(unit argument:tool:mcp)  (~(get by args) 'command')
   ?~  cmd
-    (strand-fail %missing-command ~)
+    (pure:m !>([%error %missing-command ~]))
   ?>  ?=([%string @t] u.cmd)
   =/  timeout=@dr
     =/  arg=(unit argument:tool:mcp)  (~(get by args) 'timeout-seconds')
@@ -237,9 +236,9 @@
     (send-raw-card:io [%pass /dill-logs %arvo %d %logs ~])
   ;<  ~  bind:m  (leave-our:io wire %dojo)
   %-  pure:m
-  !>  ^-  json
-  %-  pairs:enjs:format
-  :~  ['type' s+'text']
-      ['text' s+(join-wain result)]
-  ==
+  !>  ^-  response:tool:mcp
+  :-  %result
+  :-  %structured
+  %-  frond:enjs:format
+  [%dojo-output s+(of-wain:format result)]
 ==
