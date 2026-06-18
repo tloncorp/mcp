@@ -1,5 +1,5 @@
 /-  mcp
-/+  dbug, verb, server, default-agent, jut=json-utils, *rpc
+/+  dbug, verb, server, default-agent, pf=pretty-file, jut=json-utils, *rpc
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
@@ -19,6 +19,20 @@
     (wash [0 80] tank)
   |=  =tape
   (crip tape)
+::
+++  mark-mime
+  |=  =mark
+  ^-  @t
+  ?+  mark  'application/octet-stream'
+    %css   'text/css'
+    %hoon  'text/hoon'
+    %html  'text/html'
+    %js    'text/javascript'
+    %json  'application/json'
+    %md    'text/markdown'
+    %txt   'text/plain'
+    %xml   'application/xml'
+  ==
 ::
 ++  simple-response
   |=  [eyre-id=@ta status=@ud headers=(list [key=@t value=@t])]
@@ -205,7 +219,7 @@
           %+  turn
             .^  (list path)
                 %ct
-                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp/tools
+                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/default/mcp
             ==
           |=  pax=path
           ^-  beam
@@ -672,10 +686,18 @@
               :_  this
               (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
             :_  this
-            :~  :*  %pass  /res/resource/[eyre-id]/(scot %ud u.request-id)
-                    %arvo  %k
-                    %fard  q.byk.bowl
-                    %read-beam  %beam  !>(parsed-beam)
+            :~  :*  %pass
+                    /response/resource/beam/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    %arvo
+                    %c
+                    %warp
+                    :*  p.u.parsed-beam
+                        q.u.parsed-beam
+                        ~
+                        %sing  %x
+                        r.u.parsed-beam
+                        s.u.parsed-beam
+                    ==
             ==  ==
           ::
               ?(%'http' %'https')
@@ -686,7 +708,7 @@
               (send-event eyre-id (params:error:rpc p.u.id 'Missing or invalid JSON RPC request ID' ~))
             :_  this
             :~  :*  %pass
-                    /res/resource/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    /response/resource/http/[eyre-id]/(scot %ud u.request-id)/[u.uri]
                     %arvo
                     %i
                     [%request [%'GET' u.uri ~ ~] *outbound-config:iris]
@@ -803,7 +825,7 @@
                 ==
               --
           ^-  (list card)
-          :~  :*  %pass  /res/tool/[eyre-id]/(scot %ud u.rpc-id)
+          :~  :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)
                   %arvo  %k
                   %lard  q.byk.bowl
                   %-  thread-builder.i.tool-results
@@ -866,7 +888,7 @@
     %-  (slog leaf/"mcp: failed to bind {<dap.bowl>} to /mcp" ~)
     `this
   ::
-      [%res feat=@ta eyre-id=@ta rpc-id=@ta und=*]
+      [%response %tool eyre-id=@ta rpc-id=@ta ~]
     ?+  sign-arvo
       (on-arvo:def pole sign-arvo)
     ::
@@ -878,14 +900,7 @@
         (internal:error:rpc rpc-id.pole (crip (print-tang-to-wain tang.p.p.sign-arvo)) ~)
       ?>  ?=([%khan %arow %.y %noun *] sign-arvo)
       =/  [%khan %arow %.y %noun =vase]  sign-arvo
-      ?+  feat.pole
-        :_  this
-        %+  send-event
-          eyre-id.pole
-        (internal:error:rpc rpc-id.pole 'Unknown response type' ~)
-      ::
-          %tool
-        =/  =response:tool:mcp  !<(response:tool:mcp vase)
+      =/  =response:tool:mcp  !<(response:tool:mcp vase)
         :_  this
         %+  send-event
           eyre-id.pole
@@ -979,44 +994,48 @@
               ['isError' b+.n]
           ==
         ==
-      ::
-          %resource
-        `this
-        ::  =/  =response:resource:mcp  !<(response:resource:mcp vase)
-        ::  =/  uri=(unit @t)  (~(deg jo:jut result) /uri so:dejs:format)
-        ::  =/  mym=(unit @t)  (~(deg jo:jut result) /mime-type so:dejs:format)
-        ::  =/  txt=(unit @t)  (~(deg jo:jut result) /text so:dejs:format)
-        ::  ?~  uri
-          ::  :_  this
-          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing uri in resource response' ~))
-        ::  ?~  mym
-          ::  :_  this
-          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing mimeType in resource response' ~))
-        ::  ?~  txt
-          ::  :_  this
-          ::  (send-event eyre-id.pole (internal:error:rpc rpc-id.pole 'Missing text in resource response' ~))
-        ::  :_  this
-        ::  %:  send-event
-            ::  eyre-id.pole
-            ::  %-  result:rpc
-            ::  :-  rpc-id.pole
-            ::  %-  pairs:enjs:format
-            ::  :~  :-  'contents'
-                ::  :-  %a
-                ::  :~  %-  pairs:enjs:format
-                    ::  :~  ['uri' s+u.uri]
-                        ::  ['mimeType' s+u.mym]
-                        ::  ['text' s+u.txt]
-                    ::  ==
-                ::  ==
-            ::  ==
-        ::  ==
       ==
+  ::
+      [%response %resource %beam eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+      ::
+        [%clay %writ *]
+      =/  [%clay %writ =riot:clay]  sign-arvo
+      :_  this
+      %:  send-event
+          eyre-id.pole
+          %-  result:rpc
+          :-  rpc-id.pole
+          %-  pairs:enjs:format
+          :~  :-  'contents'
+              :-  %a
+              :~  %-  pairs:enjs:format
+                  %+  welp
+                    :~  ['uri' s+uri.pole]
+                        :-  'text'
+                        :-  %s
+                        ?~  riot
+                          'Failed to fetch file.'
+                        %-  crip
+                        %-  print-tang-to-wain
+                        %-  pretty-file:pf
+                        !<(noun q.r.u.riot)
+                    ==
+                  ?~  riot
+                    ~
+                  :~  ['mimeType' s+(mark-mime p.r.u.riot)]
+                  ==
+              ==
+          ==
+      ==
+    ==
+  ::
+      [%response %resource %http eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
     ::
         [%iris %http-response *]
-      ?<  ?=(~ und.pole)
-      ?>  ?=([@ta ~] und.pole)
-      =*  uri  -.und.pole
       =/  =client-response:iris  client-response.sign-arvo
       ?+  -.client-response
         :_  this
@@ -1042,7 +1061,7 @@
             :~  :-  'contents'
                 :-  %a
                 :~  %-  pairs:enjs:format
-                    :~  ['uri' s+uri]
+                    :~  ['uri' s+uri.pole]
                         ['mimeType' s+content-type]
                         ['text' s+body-text]
                     ==
