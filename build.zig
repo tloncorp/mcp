@@ -322,16 +322,30 @@ fn copyFilePath(source_path: []const u8, dest_path: []const u8) !void {
 }
 
 fn clearDirContents(allocator: std.mem.Allocator, dir_path: []const u8) !void {
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
+    {
+        var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
+        defer dir.close();
 
-    var it = dir.iterate();
-    while (try it.next()) |entry| {
-        const child_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
-        switch (entry.kind) {
-            .directory => try std.fs.cwd().deleteTree(child_path),
-            .file, .sym_link => try std.fs.cwd().deleteFile(child_path),
-            else => {},
+        var it = dir.iterate();
+        while (try it.next()) |entry| {
+            if (entry.kind == .file or entry.kind == .sym_link) {
+                const child_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
+                try std.fs.cwd().deleteFile(child_path);
+            }
+        }
+    }
+
+    {
+        var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
+        defer dir.close();
+
+        var it = dir.iterate();
+        while (try it.next()) |entry| {
+            if (entry.kind == .directory) {
+                const child_path = try std.fs.path.join(allocator, &.{ dir_path, entry.name });
+                try clearDirContents(allocator, child_path);
+                try std.fs.cwd().deleteDir(child_path);
+            }
         }
     }
 }
