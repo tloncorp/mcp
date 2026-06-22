@@ -5,13 +5,34 @@
 ::    can mark each grant expired/live consistently.
 ::
 /-  oauth
-/+  oj=oauth-json
 |_  snap=[now=@da gs=(map provider-id:oauth grant:oauth)]
 ++  grad  %noun
 ++  grow
   |%
   ++  noun  snap
-  ++  json  (grants:enjs:oj now.snap gs.snap)
+  ++  json
+    =,  enjs:format
+    ^-  ^json
+    :-  %a
+    %+  turn  ~(tap by gs.snap)
+    |=  [=provider-id:oauth =grant:oauth]
+    ^-  ^json
+    =/  is-expired=?
+      ?~  expires-at.grant  %.n
+      (lth u.expires-at.grant now.snap)
+    %-  pairs
+    :~  ['provider' s+(scot %tas provider-id)]
+        ['connected' b+!is-expired]
+        ['tokenType' s+token-type.grant]
+        ['scopes' s+scopes.grant]
+        ['hasRefreshToken' b+?=(^ refresh-token.grant)]
+      ::
+        :-  'expiresAt'
+        ?~  expires-at.grant  ~
+        s+(scot %da u.expires-at.grant)
+      ::
+        ['expired' b+is-expired]
+    ==
   --
 ++  grab
   |%

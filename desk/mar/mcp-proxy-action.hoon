@@ -16,7 +16,7 @@
       |=  key=@t
       ^-  (unit @tas)
       ?.  ?=(%o -.jon)  ~
-      =/  v=(unit ^json)  (~(get by p.jon) key)
+      =/  v=(unit json)  (~(get by p.jon) key)
       ?~  v  ~
       ?.  ?=(%s -.u.v)  ~
       ?:  =('' p.u.v)  ~
@@ -25,7 +25,7 @@
       |=  key=@t
       ^-  (unit @t)
       ?.  ?=(%o -.jon)  ~
-      =/  v=(unit ^json)  (~(get by p.jon) key)
+      =/  v=(unit json)  (~(get by p.jon) key)
       ?~  v  ~
       ?.  ?=(%s -.u.v)  ~
       ?:  =('' p.u.v)  ~
@@ -34,7 +34,7 @@
       |=  key=@t
       ^-  @t
       ?.  ?=(%o -.jon)  ''
-      =/  v=(unit ^json)  (~(get by p.jon) key)
+      =/  v=(unit json)  (~(get by p.jon) key)
       ?~  v  ''
       ?.  ?=(%s -.u.v)  ''
       p.u.v
