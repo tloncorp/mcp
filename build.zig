@@ -48,6 +48,8 @@ const dependencies = [_]RepoImport{
             "pkg/base-dev/mar/mime.hoon",
             "pkg/base-dev/mar/noun.hoon",
             "pkg/base-dev/mar/ship.hoon",
+            "pkg/base-dev/mar/sole/action.hoon",
+            "pkg/base-dev/mar/sole/effect.hoon",
             "pkg/base-dev/mar/txt.hoon",
             "pkg/base-dev/sur/sole.hoon",
             "pkg/base-dev/sur/spider.hoon",
