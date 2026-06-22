@@ -16,17 +16,53 @@
       (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string *] u.dek)
     ;<  =bowl:rand  bind:m  get-bowl:io
+    ;<  before=(list tool:mcp)  bind:m
+      (scry:io (list tool:mcp) %gx /mcp-server/mcp/tools/noun)
+    =/  agents=(list dude:gall)
+      %+  murn
+        ~(tap in .^((set [dude:gall ?]) %ge /(scot %p our.bowl)/[p.u.dek]/(scot %da now.bowl)/$))
+      |=  [=dude:gall live=?]
+      ^-  (unit dude:gall)
+      ?.  live
+        ~
+      =/  result=(each * (list tank))
+        %-  mule
+        |.  .^((list tool:mcp) %gx /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/tools/noun)
+      ?.  -.result
+        ~
+      ?~  ;;((list tool:mcp) p.result)
+        ~
+      `dude
     ;<  ~  bind:m
-      %-  send-raw-card:io
-      :*  %pass   ~
-          %agent  [our.bowl %mcp-server]
-          %poke   %import-tools  !>(p.u.dek)
-      ==
-    ;<  ~  bind:m  (take-poke-ack:io ~)
+      %-  send-raw-cards:io
+      %+  turn  agents
+      |=  =dude:gall
+      ^-  card:agent:gall
+      [%pass /import-tools %agent [our.bowl %mcp-server] %poke %import-tools !>(dude)]
+    =/  take-acks
+      |=  remaining=(list dude:gall)
+      =/  am  (strand:spider ,~)
+      ^-  form:am
+      ?~  remaining
+        (pure:am ~)
+      ;<  ~  bind:am  (take-poke-ack:io /import-tools)
+      $(remaining t.remaining)
+    ;<  ~  bind:m  (take-acks agents)
+    ;<  after=(list tool:mcp)  bind:m
+      (scry:io (list tool:mcp) %gx /mcp-server/mcp/tools/noun)
+    =/  added=(list tool:mcp)
+      %+  murn  after
+      |=  new=tool:mcp
+      ^-  (unit tool:mcp)
+      ?:  %+  lien  before
+          |=  old=tool:mcp
+          =(name.new name.old)
+        ~
+      `new
     %-  pure:m
     !>  ^-  response:tool:mcp
     :-  %result
-    :-  %unstructured
-    :~  [%text (crip "Poked %mcp-server to import tools from %{(trip p.u.dek)}")]
-    ==
+    :-  %structured
+    %-  frond:enjs:format
+    [%imported-tools a+(turn added |=(=tool:mcp s+name.tool))]
 ==

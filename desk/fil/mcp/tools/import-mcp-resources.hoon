@@ -16,17 +16,53 @@
       (pure:m !>([%error %missing-desk ~]))
     ?>  ?=([%string *] u.dek)
     ;<  =bowl:rand  bind:m  get-bowl:io
+    ;<  before=(list resource:mcp)  bind:m
+      (scry:io (list resource:mcp) %gx /mcp-server/mcp/resources/noun)
+    =/  agents=(list dude:gall)
+      %+  murn
+        ~(tap in .^((set [dude:gall ?]) %ge /(scot %p our.bowl)/[p.u.dek]/(scot %da now.bowl)/$))
+      |=  [=dude:gall live=?]
+      ^-  (unit dude:gall)
+      ?.  live
+        ~
+      =/  result=(each * (list tank))
+        %-  mule
+        |.  .^((list resource:mcp) %gx /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/resources/noun)
+      ?.  -.result
+        ~
+      ?~  ;;((list resource:mcp) p.result)
+        ~
+      `dude
     ;<  ~  bind:m
-      %-  send-raw-card:io
-      :*  %pass   ~
-          %agent  [our.bowl %mcp-server]
-          %poke   %import-resources  !>(p.u.dek)
-      ==
-    ;<  ~  bind:m  (take-poke-ack:io ~)
+      %-  send-raw-cards:io
+      %+  turn  agents
+      |=  =dude:gall
+      ^-  card:agent:gall
+      [%pass /import-resources %agent [our.bowl %mcp-server] %poke %import-resources !>(dude)]
+    =/  take-acks
+      |=  remaining=(list dude:gall)
+      =/  am  (strand:spider ,~)
+      ^-  form:am
+      ?~  remaining
+        (pure:am ~)
+      ;<  ~  bind:am  (take-poke-ack:io /import-resources)
+      $(remaining t.remaining)
+    ;<  ~  bind:m  (take-acks agents)
+    ;<  after=(list resource:mcp)  bind:m
+      (scry:io (list resource:mcp) %gx /mcp-server/mcp/resources/noun)
+    =/  added=(list resource:mcp)
+      %+  murn  after
+      |=  new=resource:mcp
+      ^-  (unit resource:mcp)
+      ?:  %+  lien  before
+          |=  old=resource:mcp
+          =(uri.new uri.old)
+        ~
+      `new
     %-  pure:m
     !>  ^-  response:tool:mcp
     :-  %result
-    :-  %unstructured
-    :~  [%text (crip "Poked %mcp-server to import resources from %{(trip p.u.dek)}")]
-    ==
+    :-  %structured
+    %-  frond:enjs:format
+    [%imported-resources a+(turn added |=(=resource:mcp s+uri.resource))]
 ==
