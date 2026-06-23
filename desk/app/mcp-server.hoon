@@ -80,22 +80,24 @@
   !>(state)
 ::
 ++  on-load
-  |=  =vase
+  |=  old-state=vase
   ^-  (quip card _this)
-  =/  old  !<(versioned-state vase)
-  =/  new=state-1
-    ?-    -.old
-        %1  old
-        %0
+  =/  old-1  (mule |.(!<(state-1 old-state)))
+  ?:  ?=(%| -.old-1)
+    =/  old-0  (mule |.(!<(state-0 old-state)))
+    ?:  ?=(%| -.old-0)
+      on-init
+    =/  new=state-1
       :*  %1
-          tools.old
-          prompts.old
-          resources.old
+          tools.p.old-0
+          prompts.p.old-0
+          resources.p.old-0
           ''                          ::  await mcp-proxy poke
       ==
-    ==
+    :-  ~
+    this(state new)
   :-  ~
-  this(state new)
+  this(state p.old-1)
 ::
 ++  on-init
   ^-  (quip card _this)
