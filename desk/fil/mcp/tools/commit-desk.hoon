@@ -135,14 +135,16 @@
     =/  [%dill %logs =told:dill]  u.maybe-dill-sign
     ?-    told
         [%crud *]
+      =/  error-lines=wain
+        (print-tang-to-wain (prune-err q.told))
       %-  pure:m
       !>  ^-  response:tool:mcp
       :-  %error
-      :-  p.told
+      :-  (of-wain:format error-lines)
       %-  some
       :-  %a
       %+  turn
-        (print-tang-to-wain (prune-err q.told))
+        error-lines
       |=  =cord
       s+cord
     ::
