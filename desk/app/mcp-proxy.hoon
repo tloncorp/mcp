@@ -2636,7 +2636,11 @@
       headers.u.srv
       (~(get by cookies) sid)
       ~
-      (get-oauth-header oauth-provider.u.srv our now)
+      ::  Do not scry %oauth while Gall is reviving this desk. During
+      ::  install/unsuspend, %oauth may not be live yet, and a failed
+      ::  cross-agent peek suspends the whole desk. Runtime calls and
+      ::  action-driven priming still attach OAuth headers.
+      ~
       init-body
   ==
 ::
