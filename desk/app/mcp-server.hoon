@@ -424,7 +424,16 @@
       =/  h=(unit @t)
         (get-header:http 'host' header-list.request.req)
       ?~(h 'localhost' u.h)
-    =/  base=@t  (rap 3 'http://' host ~)
+    ::
+    ::  enforce https outside of localhost
+    ?.  ?|  secure.req
+            ?|  =(host 'localhost')
+                =("localhost:" (scag 10 (trip host)))
+            ==
+        ==
+      [(simple-response eyre-id 400 ~) this]
+    =/  base=@t
+      (rap 3 ?.(secure.req 'http://' 'https://') host ~)
     ::  RFC 9728 protected-resource metadata at the spec'd path.
     ::  Empty authorization_servers + bearer_methods=header tells
     ::  the client to use the auth header it already has.
