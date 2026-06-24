@@ -36,6 +36,32 @@
     %xml   'application/xml'
   ==
 ::
+++  loopback-authority
+  |=  authority=tape
+  ^-  ?
+  =/  suffix=(unit tape)
+    ?:  =("localhost" (scag 9 authority))
+      `(slag 9 authority)
+    ?:  =("127.0.0.1" (scag 9 authority))
+      `(slag 9 authority)
+    ?:  =("[::1]" (scag 5 authority))
+      `(slag 5 authority)
+    ~
+  ?~  suffix  %.n
+  ?~  u.suffix  %.y
+  ?.  =(':' i.u.suffix)  %.n
+  ?=(^ (rush (crip t.u.suffix) dim:ag))
+::
+++  loopback-origin
+  |=  origin=@t
+  ^-  ?
+  =/  origin-tape=tape  (trip origin)
+  ?:  =("http://" (scag 7 origin-tape))
+    (loopback-authority (slag 7 origin-tape))
+  ?:  =("https://" (scag 8 origin-tape))
+    (loopback-authority (slag 8 origin-tape))
+  %.n
+::
 ++  simple-response
   |=  [eyre-id=@ta status=@ud headers=(list [key=@t value=@t])]
   ^-  (list card)
@@ -425,13 +451,28 @@
         (get-header:http 'host' header-list.request.req)
       ?~(h 'localhost' u.h)
     ::
-    ::  enforce https outside of localhost
-    ?.  ?|  secure.req
-            ?|  =(host 'localhost')
-                =("localhost:" (scag 10 (trip host)))
-            ==
-        ==
+    ::  Enforce HTTPS outside loopback, and reject browser origins
+    ::  that do not correspond to the local endpoint or our EAuth URL.
+    =/  local=?  (loopback-authority (trip host))
+    ?.  ?|(secure.req local)
       [(simple-response eyre-id 400 ~) this]
+    =/  origin=(unit @t)
+      (get-header:http 'origin' header-list.request.req)
+    =/  origin-allowed=?
+      ?~  origin
+        .y
+      ?:  local
+        (loopback-origin u.origin)
+      =/  eauth=(unit @t)
+        .^  (unit @t)
+            %ex
+            /(scot %p our.bowl)//(scot %da now.bowl)/eauth/url
+        ==
+      ?~  eauth
+        .n
+      =(u.origin u.eauth)
+    ?.  origin-allowed
+      [(simple-response eyre-id 403 ~) this]
     =/  base=@t
       (rap 3 ?.(secure.req 'http://' 'https://') host ~)
     ::  RFC 9728 protected-resource metadata at the spec'd path.
