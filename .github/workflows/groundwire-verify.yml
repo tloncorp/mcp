@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
   statuses: write
 
@@ -153,7 +154,11 @@ jobs:
             if [ "$VALID" != "true" ]; then
               ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // "unknown"')
               echo "::error::Commit ${SHORT}: ${SIGNER} verification failed (${ERROR_MSG})"
-              RESULTS="${RESULTS}FAILED ${SHORT} ${SIGNER} ${ERROR_MSG}\n"
+              if [ "$ERROR_MSG" = "signer not found in Jael" ] || [ "$ERROR_MSG" = "signer has no keys (life=0)" ]; then
+                RESULTS="${RESULTS}NOT_ONCHAIN ${SHORT} ${SIGNER} ${ERROR_MSG}\n"
+              else
+                RESULTS="${RESULTS}FAILED ${SHORT} ${SIGNER} ${ERROR_MSG}\n"
+              fi
               VERIFIED="false"
             else
               LIFE=$(echo "$RESPONSE" | jq -r '.life // "?"')
@@ -168,11 +173,16 @@ jobs:
       - name: Gate PR on verification
         if: steps.verify.outputs.verified != 'true'
         run: |
-          echo "::error::This PR contains commits not signed by a recognized Groundwire ID."
+          if grep -Eq '^(UNSIGNED|NOT_GROUNDWIRE) ' /tmp/verification-results.txt; then
+            echo "::error::This PR contains commits without Groundwire signatures."
+          elif grep -Eq '^UNREACHABLE ' /tmp/verification-results.txt; then
+            echo "::error::Groundwire verification could not complete because the CI verifier node was unreachable."
+          else
+            echo "::error::This PR contains commits that failed Groundwire verification."
+          fi
           echo ""
           cat /tmp/verification-results.txt
           echo ""
-          echo "Contributors must sign commits with a Groundwire key."
           echo "This check must pass before the PR will be reviewed."
           exit 1
 
@@ -187,25 +197,76 @@ jobs:
               results = fs.readFileSync('/tmp/verification-results.txt', 'utf8').trim();
             } catch (_) {}
 
+            const lines = results.split('\n').filter(Boolean);
+            const hasNoGroundwireSignature = lines.some(line =>
+              /^(UNSIGNED|NOT_GROUNDWIRE)\s/.test(line)
+            );
+            const hasNotOnchainSigner = lines.some(line =>
+              /^NOT_ONCHAIN\s/.test(line)
+            );
+            const hasUnreachableVerifier = lines.some(line =>
+              /^UNREACHABLE\s/.test(line)
+            );
+
+            const commentMarker = '<!-- groundwire-verification-comment -->';
+
+            let failureMessage = 'This PR may not be reviewed because one or more commits failed [Groundwire](https://groundwire.io/) verification:'
+            let why = [
+              'This repository requires contributors to prove ownership of an onchain Groundwire ID. Commit signatures are cryptographically verified against the signer\'s onchain networking key.'
+            ];
+            let fixSteps = [
+              '1. **Make sure Groundwire is running** at the URL Vitriol expects at `sign-endpoint` in `/<local repo>/.git/config`',
+              '2. **Update the cookie** for `sign-token` in `/<local repo>/.git/config` ([instructions](https://docs.urbit.org/urbit-os/kernel/eyre/external-api-ref#authentication))',
+              '3. **Re-sign your commits** — `git rebase --force-rebase --exec \'git commit --amend --no-edit -S\' HEAD~N`'
+            ];
+
+            if (hasNoGroundwireSignature) {
+              failureMessage = 'This PR may not be reviewed because at least one commit has no [Groundwire](https://groundwire.io/) signature:';
+              why = [
+                'This repository requires contributors to prove ownership of an onchain Groundwire ID. Commit signatures are cryptographically verified against the signer\'s onchain networking key.'
+              ];
+              fixSteps = [
+                '1. **Install Groundwire** at [groundwire.io](https://groundwire.io/)',
+                '2. **Configure Vitriol** at `http://<your groundwire>/vitriol`',
+                '3. **Re-sign your commits** — `git rebase --force-rebase --exec \'git commit --amend --no-edit -S\' HEAD~N`',
+              ];
+            } else if (hasUnreachableVerifier) {
+              failureMessage = 'This PR may not be reviewed because CI could not reach the repository\'s [Groundwire](https://groundwire.io/) verifier node to verify the following commits:';
+              why = [
+                'The commits include Groundwire signatures, but the GitHub Action could not contact the verifier. This is a maintainer-side issue, not a contributor signing issue.'
+              ];
+              fixSteps = [
+                '1. **Check that the repository verifier node is running** and reachable from GitHub Actions',
+                '2. **Check the `GROUNDWIRE_ENDPOINT` repository secret** and make sure it points at the verifier\'s public HTTP endpoint',
+                '3. **Check `GROUNDWIRE_AUTH`** if the verifier requires an Eyre auth cookie, or enable public verification for the CI endpoints',
+                '4. **Re-run this check** after the verifier is reachable'
+              ];
+            } else if (hasNotOnchainSigner) {
+              failureMessage = 'This PR may not be reviewed because at least one commit was signed by a Groundwire ID that is not onchain:';
+              why = [
+                'The commit includes a Groundwire signature, but the signer is not present in the verifier\'s state. The signer must have an onchain Groundwire identity with a current networking key before CI can verify the commit.'
+              ];
+              fixSteps = [
+                '1. **Put the signing Groundwire ID onchain** — [Groundwire](https://groundwire.io/)',
+                '2. **Wait** for the onchain identity to show up in your %urb-watcher state',
+                '3. **Re-run this check**, or re-sign with an already-onchain Groundwire ID — `git rebase --force-rebase --exec \'git commit --amend --no-edit -S\' HEAD~N`'
+              ];
+            }
+
             const body = [
+              commentMarker,
               '## Groundwire Verification Failed',
               '',
-              'This PR will not be reviewed because commits are not signed by a recognized [Groundwire ID](https://groundwire.io).',
+              failureMessage,
               '',
               '```',
               results,
               '```',
-              '',
-              '### Why?',
-              'This repository requires contributors to prove ownership of an onchain Groundwire identity.',
-              'Commit signatures are cryptographically verified against the signer\'s on-chain networking key.',
+              ...why,
               '',
               '### How to fix this',
-              '1. **Get a Groundwire ID** — [groundwire.io/guide.html](https://groundwire.io/guide.html)',
-              '2. **Install commit signing** — `./hooks/install.sh <your-ship-url>`',
-              '3. **Re-sign your commits** — `git rebase --exec "true" HEAD~N` (after configuring signing)',
+              ...fixSteps,
               '',
-              '---',
               '*This repository is protected by [Groundwire for GitHub](https://github.com/gwbtc/vitriol).*'
             ].join('\n');
 
@@ -216,10 +277,63 @@ jobs:
             });
 
             const existing = comments.find(c =>
-              c.body?.includes('Groundwire Verification Failed')
+              c.body?.includes(commentMarker) ||
+              c.body?.includes('Groundwire Verification Failed') ||
+              c.body?.includes('Groundwire Verification Passed')
             );
 
-            if (!existing) {
+            if (existing && existing.body !== body) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else if (!existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Comment on verified PR
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentMarker = '<!-- groundwire-verification-comment -->';
+
+            const body = [
+              commentMarker,
+              '## Groundwire Verification Passed',
+              '',
+              'All commits in this PR passed [Groundwire](https://groundwire.io/) verification. This PR is ready for review.',
+              '',
+              '*This repository is protected by [Groundwire for GitHub](https://github.com/gwbtc/vitriol).*'
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.body?.includes(commentMarker) ||
+              c.body?.includes('Groundwire Verification Failed') ||
+              c.body?.includes('Groundwire Verification Passed')
+            );
+
+            if (existing && existing.body !== body) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else if (!existing) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
