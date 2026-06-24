@@ -1345,65 +1345,65 @@
               ['jsonrpc' s+'2.0']
               :-  'result'
               %-  pairs:enjs:format
-              %-  zing
-              :~  ?-    response
-                      [%result %structured *]
-                    :~  ['structuredContent' json.response]  ==
-                  ::
-                      [%result %unstructured *]
-                    :~  :-  'content'
-                        :-  %a
-                        %+  turn
-                          results.response
-                        |=  =result:tool:mcp
-                        ^-  json
-                        ?-    -.result
-                            %text
+              ?-    response
+                  [%result %structured *]
+                :~  ['structuredContent' json.response]
+                    ['isError' b+.n]
+                ==
+              ::
+                  [%result %unstructured *]
+                :~  :-  'content'
+                    :-  %a
+                    %+  turn
+                      results.response
+                    |=  =result:tool:mcp
+                    ^-  json
+                    ?-    -.result
+                        %text
+                      %-  pairs:enjs:format
+                      :~  ['type' s+'text']
+                          ['text' s+text.result]
+                      ==
+                    ::
+                        %audio
+                      %-  pairs:enjs:format
+                      :~  ['type' s+'audio']
+                          ['data' s+data.result]
+                          ['mimeType' s+mime.result]
+                      ==
+                    ::
+                        %resource-link
+                      %-  pairs:enjs:format
+                      :~  ['type' s+'resource_link']
+                          ['uri' s+uri.result]
+                          ['name' s+name.result]
+                          ['description' s+desc.result]
+                          ['mimeType' s+mime.result]
+                      ==
+                    ::
+                        %image
+                      %-  pairs:enjs:format
+                      ::  XX parse annotations
+                      :~  ['type' s+'image']
+                          ['data' s+data.result]
+                          ['mimeType' s+mime.result]
+                      ==
+                    ::
+                        %resource
+                      ::  XX parse annotations
+                      %-  pairs:enjs:format
+                      :~  ['type' s+'resource']
+                          :-  'resource'
                           %-  pairs:enjs:format
-                          :~  ['type' s+'text']
+                          :~  ['uri' s+uri.result]
+                              ['mimeType' s+mime.result]
                               ['text' s+text.result]
                           ==
-                        ::
-                            %audio
-                          %-  pairs:enjs:format
-                          :~  ['type' s+'audio']
-                              ['data' s+data.result]
-                              ['mimeType' s+mime.result]
-                          ==
-                        ::
-                            %resource-link
-                          %-  pairs:enjs:format
-                          :~  ['type' s+'resource_link']
-                              ['uri' s+uri.result]
-                              ['name' s+name.result]
-                              ['description' s+desc.result]
-                              ['mimeType' s+mime.result]
-                          ==
-                        ::
-                            %image
-                          %-  pairs:enjs:format
-                          ::  XX parse annotations
-                          :~  ['type' s+'image']
-                              ['data' s+data.result]
-                              ['mimeType' s+mime.result]
-                          ==
-                        ::
-                            %resource
-                          ::  XX parse annotations
-                          %-  pairs:enjs:format
-                          :~  ['type' s+'resource']
-                              :-  'resource'
-                              %-  pairs:enjs:format
-                              :~  ['uri' s+uri.result]
-                                  ['mimeType' s+mime.result]
-                                  ['text' s+text.result]
-                              ==
-                          ==
-                        ==
+                      ==
                     ==
-                  ==
-                  :~  ['isError' b+.n]
-                  ==
+                    ['isError' b+.n]
+                ==
+              ==
           ==
         ==
       ==
