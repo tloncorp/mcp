@@ -11,21 +11,25 @@
   =/  care=@t               i.parts
   =/  after-care=(list @t)  t.parts
   ?~  after-care
+    ?:  =(%'cd' care)
+      `/cd
     ~
   ?+  care  ~
-      %'gx'
-    `(welp /gx/[i.after-care] (to-path t.after-care))
+      ?(%'gx' %'gd' %'ge' %'gu')
+    `(welp /[care]/[i.after-care] (to-path t.after-care))
   ::
-      %'cx'
+      ?(%'cx' %'cp' %'ct' %'cu' %'cw' %'cz')
     =/  after-desk=(list @t)  t.after-care
     ?~  after-desk
+      ?:  =(%'cw' care)
+        `(welp /cw/[i.after-care] ~)
       ~
     ?~  t.after-desk
       ~
     =/  case-knot=(unit @ta)  (parse-case i.after-desk)
     ?~  case-knot
       ~
-    `(welp /cx/[i.after-care]/[u.case-knot] (to-path t.after-desk))
+    `(welp /[care]/[i.after-care]/[u.case-knot] (to-path t.after-desk))
   ==
 ::
 ++  parse-case
