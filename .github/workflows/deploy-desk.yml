@@ -5,10 +5,11 @@ on:
       - main
 
 env:
-  DESK: mcp
+  DESK:      mcp
+  TMUX_TAB:  sponsor
   SHIP_HOST: root@143.198.70.9
-  PIER_PATH: /root/.local/share/groundwire-alpha/ribsyp-lidwex-mitdev-sopsyn--difrel-mapler-mitnyt-daplyd
-  TMUX_TAB: ribsyp
+  PIER_PATH: /root/.local/share/groundwire-alpha
+  DIST_PIER: watwyd-bannyt-parmep-sivpes--motweb-dovfet-nilrec-daplyd
 
 jobs:
   deploy:
@@ -17,18 +18,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install peru
+      - name: Install Zig 0.15.2
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y pipx
-          pipx ensurepath
-          pipx install peru
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          curl -LO "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz"
+          tar xf zig-x86_64-linux-0.15.2.tar.xz
+          ZIG_DIR=zig-x86_64-linux-0.15.2
+          echo "$(pwd)/$ZIG_DIR" >> $GITHUB_PATH
 
       - name: Build desk
+        run: zig build
+
+      - name: Create desk.ship
         run: |
-          chmod +x build.sh
-          bash build.sh
+          printf '%s\n' "~${DIST_PIER}" > dist/desk.ship
 
       - name: Setup SSH
         run: |
@@ -37,10 +39,13 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H 143.198.70.9 >> ~/.ssh/known_hosts
 
+      - name: Clear deployed desk
+        run: ssh ${SHIP_HOST} "find ${PIER_PATH}/${DIST_PIER}/${DESK} -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+
       - name: Deploy desk
         run: |
           rsync -az --delete --exclude='.git*' \
-            dist/ ${SHIP_HOST}:${PIER_PATH}/${DESK}/
+            dist/ ${SHIP_HOST}:${PIER_PATH}/${DIST_PIER}/${DESK}/
 
       - name: Commit desk on ship
         run: |

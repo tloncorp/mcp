@@ -1,4 +1,6 @@
 |%
++$  session  @t
+::
 ++  tool
   =<  tool
   |%
@@ -6,9 +8,11 @@
   +$  desc  @t
   ::
   +$  parameters
+    $+  mcp-tool-parameters
     (map name:parameter def:parameter)
   ::
   +$  required
+    $+  mcp-tool-required-parameters
     (list name:parameter)
   ::
   +$  tool
@@ -25,12 +29,41 @@
     $-((map name:parameter argument) shed:khan)
   ::
   +$  argument
+    $+  mcp-tool-argument
     $@  ~
     $%  [%string p=@t]
         [%number p=@ud]
         [%boolean p=?]
         [%array p=(list argument)]
         [%object p=(map @t argument)]
+    ==
+  ::
+  +$  response
+    $+  mcp-tool-response
+    $%  [%error message=@t data=(unit json)]
+        $:  %result
+            $%  [%structured =json]
+                [%unstructured results=(list result)]
+            ==
+        ==
+    ==
+  ::
+  +$  result
+    $+  mcp-tool-result
+    $%  [%text text=@t]
+        [%audio data=@t mime=@t]
+        [%resource-link uri=@t name=@t desc=@t mime=@t]
+        $:  %image
+            data=@t
+            mime=@t
+            annotations=(unit [audience=(list @t) priority=@rs])
+        ==
+        $:  %resource
+            uri=@t
+            mime=@t
+            text=@t
+            annotations=(unit [audience=(list @t) priority=@rs modified=@t])
+        ==
     ==
   ::
   ++  parameter
@@ -61,8 +94,21 @@
     $+  mcp-resource
     $:  uri=@t
         name=@t
-        desc=@t
+        title=(unit @t)
+        desc=(unit @t)
         mime-type=(unit @t)
+        size=(unit @ud)
+        annotations=(unit annotations)
+    ==
+  ::
+  +$  template
+    $+  mcp-resource-template
+    $:  uri-template=@t
+        name=@t
+        title=(unit @t)
+        desc=(unit @t)
+        mime-type=(unit @t)
+        size=(unit @ud)
         annotations=(unit annotations)
     ==
   ::

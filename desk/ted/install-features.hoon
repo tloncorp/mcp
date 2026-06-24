@@ -23,9 +23,10 @@
   $(list t.list)
 =/  =mark
   ?+  s.bem  %noun
-    [%fil %default %mcp %tools *]      %add-tool
-    [%fil %default %mcp %prompts *]    %add-prompt
-    [%fil %default %mcp %resources *]  %add-resource
+    [%fil %mcp %tools *]      %add-tool
+    [%fil %mcp %prompts *]    %add-prompt
+    [%fil %mcp %resources *]  %add-resource
+    [%fil %mcp %templates *]  %add-template
   ==
 ;<  ~  bind:m
   (poke-our:io %mcp-server mark u.vux)
