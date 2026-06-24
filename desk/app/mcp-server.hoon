@@ -770,6 +770,71 @@
                       `(frond:enjs:format %care s+care)
                   ==
               ::
+                  ?(%d %e %u)
+                ?.  =(1 (lent scry-path))
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Gall vane scry URI must contain exactly one agent or desk'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
+                =/  scry-result
+                  %-  mule
+                  |.
+                    =/  gall-care
+                      ?-  care
+                        %d  %gd
+                        %e  %ge
+                        %u  %gu
+                      ==
+                    .^  *
+                        gall-care
+                        /(scot %p our.bowl)/[(head scry-path)]/(scot %da now.bowl)/$
+                    ==
+                ?>  ?=([? p=*] scry-result)
+                ?.  -.scry-result
+                  :_  this
+                  (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+                =/  result-text=@t
+                  ?-  care
+                    %d
+                  (en:json:html [%s (scot %tas ;;(desk p.scry-result))])
+                    %e
+                  =/  apps=(set [=dude:gall live=?])
+                    ;;((set [=dude:gall live=?]) p.scry-result)
+                  %-  en:json:html
+                  :-  %a
+                  %+  turn
+                    ~(tap in apps)
+                  |=  [=dude:gall live=?]
+                  %-  pairs:enjs:format
+                  :~  ['agent' s+(scot %tas dude)]
+                      ['running' b+live]
+                  ==
+                    %u
+                  ?:  ;;(? p.scry-result)
+                    'true'
+                  'false'
+                  ==
+                :_  this
+                %:  send-event
+                    eyre-id
+                    %-  result:rpc
+                    :-  p.u.id
+                    %-  pairs:enjs:format
+                    :~  :-  'contents'
+                        :-  %a
+                        :~  %-  pairs:enjs:format
+                            :~  ['uri' s+u.uri]
+                                ['mimeType' s+'application/json']
+                                ['text' s+result-text]
+                            ==
+                        ==
+                    ==
+                ==
+              ::
                   %x
                 ?.  =(%json (rear scry-path))
                   :_  this
@@ -813,6 +878,12 @@
               ==
             ::
                 %c
+              =/  clay-scry-path=path
+                ?:  ?&  =(%w care)
+                        =(1 (lent scry-path))
+                    ==
+                  (weld scry-path /[(scot %da now.bowl)])
+                scry-path
               ?+    care
                   :_  this
                   %+  send-event
@@ -823,9 +894,89 @@
                       `(frond:enjs:format %care s+care)
                   ==
               ::
+                  %d
+                ?.  =(0 (lent scry-path))
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  params:error:rpc
+                      p.u.id
+                      'Clay list-desks scry URI must not contain a path'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
+                =/  scry-result
+                  %-  mule
+                  |.
+                    .^  *
+                        %cd
+                        /(scot %p our.bowl)//(scot %da now.bowl)
+                    ==
+                ?>  ?=([? p=*] scry-result)
+                ?.  -.scry-result
+                  :_  this
+                  (send-event eyre-id (internal:error:rpc p.u.id (crip (print-tang-to-wain (tang p.scry-result))) ~))
+                =/  result-text=@t
+                  %-  en:json:html
+                  :-  %a
+                  %+  turn
+                    ~(tap in ;;((set desk) p.scry-result))
+                  |=  =desk
+                  [%s (scot %tas desk)]
+                :_  this
+                %:  send-event
+                    eyre-id
+                    %-  result:rpc
+                    :-  p.u.id
+                    %-  pairs:enjs:format
+                    :~  :-  'contents'
+                        :-  %a
+                        :~  %-  pairs:enjs:format
+                            :~  ['uri' s+u.uri]
+                                ['mimeType' s+'application/json']
+                                ['text' s+result-text]
+                            ==
+                        ==
+                    ==
+                ==
+              ::
+                  ?(%p %t %u %w %z)
+                =/  parsed-beam=(unit beam)
+                  (de-beam (welp /(scot %p our.bowl) clay-scry-path))
+                ?~  parsed-beam
+                  :_  this
+                  %+  send-event
+                    eyre-id
+                  %:  request:error:rpc
+                      p.u.id
+                      'Invalid Clay scry path'
+                      `(frond:enjs:format %uri s+u.uri)
+                  ==
+                =/  clay-care=care:clay
+                  ?-  care
+                    %p  %p
+                    %t  %t
+                    %u  %u
+                    %w  %w
+                    %z  %z
+                  ==
+                :_  this
+                :~  :*  %pass
+                        /response/resource/scry/clay/[care]/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                        %arvo
+                        %c
+                        %warp
+                        :*  p.u.parsed-beam
+                            q.u.parsed-beam
+                            ~
+                            %sing  clay-care
+                            r.u.parsed-beam
+                            s.u.parsed-beam
+                        ==
+                ==  ==
+              ::
                   %x
                 =/  parsed-beam=(unit beam)
-                  (de-beam (welp /(scot %p our.bowl) scry-path))
+                  (de-beam (welp /(scot %p our.bowl) clay-scry-path))
                 ?~  parsed-beam
                   :_  this
                   %+  send-event
@@ -837,7 +988,7 @@
                   ==
                 :_  this
                 :~  :*  %pass
-                        /response/resource/scry/clay/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                        /response/resource/scry/clay/x/[eyre-id]/(scot %ud u.request-id)/[u.uri]
                         %arvo
                         %c
                         %warp
@@ -1199,12 +1350,82 @@
       ==
     ==
   ::
-      [%response %resource %scry %clay eyre-id=@ta rpc-id=@ta uri=@t ~]
+      [%response %resource %scry %clay care=@tas eyre-id=@ta rpc-id=@ta uri=@t ~]
     ?+  sign-arvo
       (on-arvo:def pole sign-arvo)
     ::
         [%clay %writ *]
       =/  [%clay %writ =riot:clay]  sign-arvo
+      =/  result-text=@t
+        ?~  riot
+          'Failed to perform Clay scry.'
+        ?+  care.pole  'Unsupported Clay scry care.'
+          %x
+            %-  crip
+            %-  print-tang-to-wain
+            %-  pretty-file:pf
+            !<(noun q.r.u.riot)
+          %p
+            =/  permissions=[read=dict:clay write=dict:clay]
+              !<([read=dict:clay write=dict:clay] q.r.u.riot)
+            =/  dict-to-json=$-(dict:clay json)
+              |=  permission=dict:clay
+              %-  pairs:enjs:format
+              :~  ['source' s+(spat src.permission)]
+                  ['mode' s+(scot %tas mod.rul.permission)]
+                  :-  'ships'
+                  :-  %a
+                  %+  turn
+                    ~(tap in p.who.rul.permission)
+                  |=  =ship
+                  [%s (scot %p ship)]
+                  :-  'groups'
+                  :-  %a
+                  %+  turn
+                    ~(tap by q.who.rul.permission)
+                  |=  [name=@ta ships=(set ship)]
+                  %-  pairs:enjs:format
+                  :~  ['name' s+name]
+                      :-  'ships'
+                      :-  %a
+                      %+  turn
+                        ~(tap in ships)
+                      |=  =ship
+                      [%s (scot %p ship)]
+                  ==
+              ==
+            %-  en:json:html
+            %-  pairs:enjs:format
+            :~  ['read' (dict-to-json read.permissions)]
+                ['write' (dict-to-json write.permissions)]
+            ==
+          %t
+            %-  en:json:html
+            :-  %a
+            %+  turn
+              !<((list path) q.r.u.riot)
+            |=  =path
+            [%s (spat path)]
+          %u
+            ?:  !<(? q.r.u.riot)
+              'true'
+            'false'
+          %w
+            =/  =cass:clay  !<(cass:clay q.r.u.riot)
+            %-  en:json:html
+            %-  pairs:enjs:format
+            :~  ['revision' s+(scot %ud ud.cass)]
+                ['date' s+(scot %da da.cass)]
+            ==
+          %z
+            (en:json:html [%s (scot %uv !<(@uvI q.r.u.riot))])
+        ==
+      =/  result-mime=@t
+        ?:  =(%x care.pole)
+          ?~  riot
+            'text/plain'
+          (mark-mime p.r.u.riot)
+        'application/json'
       :_  this
       %:  send-event
           eyre-id.pole
@@ -1214,20 +1435,11 @@
           :~  :-  'contents'
               :-  %a
               :~  %-  pairs:enjs:format
-                  %+  welp
-                    :~  ['uri' s+uri.pole]
-                        :-  'text'
-                        :-  %s
-                        ?~  riot
-                          'Failed to perform Clay scry.'
-                        %-  crip
-                        %-  print-tang-to-wain
-                        %-  pretty-file:pf
-                        !<(noun q.r.u.riot)
-                    ==
-                  ?~  riot
-                    ~
-                  :~  ['mimeType' s+(mark-mime p.r.u.riot)]
+                  :~  ['uri' s+uri.pole]
+                      ['mimeType' s+result-mime]
+                      :-  'text'
+                      :-  %s
+                      result-text
                   ==
               ==
           ==

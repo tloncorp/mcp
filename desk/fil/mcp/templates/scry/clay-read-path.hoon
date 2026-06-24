@@ -1,7 +1,7 @@
 /-  mcp
 ^-  template:resource:mcp
 :*  'scry://cx/{desk}/{case}/{+clayPath}'
-    'mcp/clay-path'
+    'arvo/clay/read-path'
     `'Read Clay filepath'
     `'Read a filepath from a Clay desk at an explicit case.'
     `'text/plain'
