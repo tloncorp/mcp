@@ -1347,7 +1347,8 @@
               %-  pairs:enjs:format
               ?-    response
                   [%result %structured *]
-                :~  ['structuredContent' json.response]
+                :~  ['content' a+~]
+                    ['structuredContent' json.response]
                     ['isError' b+.n]
                 ==
               ::
