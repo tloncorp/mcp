@@ -72,8 +72,8 @@
       internal-token=(unit @t)   ::  mcp-server's auto-gen token (cached)
   ==
 ::
-::  state-5: code-mode collapses N upstream tools into 3 meta-tools
-::  (mcp_search, mcp_describe, mcp_call) so the LLM doesn't pay
+::  state-5: code-mode collapses N upstream tools into meta-tools
+::  (search, describe, call) so the LLM doesn't pay
 ::  context cost for the full catalog. inspired by cloudflare's
 ::  "code mode" approach: https://blog.cloudflare.com/code-mode-mcp/
 ::

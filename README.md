@@ -11,7 +11,7 @@ The `%mcp` desk ships as a single integrated control plane with three pieces:
 2. **MCP proxy** at `/apps/mcp/mcp` — aggregates the native server plus any
    number of remote MCP / OpenAPI / Google Discovery upstreams behind a single
    endpoint, with per-server tool filtering and OAuth 2.0 + PKCE token
-   management. OpenAPI and Discovery spec docs are dynamically converted 
+   management. OpenAPI and Discovery spec docs are dynamically converted
    to MCP tool calls.
 3. **Operator console** at `/apps/mcp/` — a web UI for configuring upstreams,
    OAuth providers, the API key, and inspecting tools.
@@ -20,12 +20,28 @@ Both `/mcp` and `/apps/mcp/mcp` authenticate with the same `X-Api-Key` header.
 A random key is generated on first install and can be regenerated, set, or
 cleared from the operator console.
 
-## Developer Setup
+## Quickstart
+
+The fastest way to get a running Urbit with MCP configured is to [install Groundwire](https://groundwire.io/). The onboarding script will automatically configure your ship for Codex, Claude Code, and Opencode.
+
+```bash
+curl -fsSL https://groundwire.io/install.sh | bash
+```
+
+If you don't need your LLM to have a self-custodied decentralized ID, you can skip the attestation flow.
+
+```bash
+curl -fsSL https://groundwire.io/install.sh | bash -s -- --skip-attestation
+```
+
+Note that this will configure a hard-coded cookie which will eventually expire. Your ship's local Codex and Opencode config files link to this README, which has instructions for getting a new cookie.
+
+## Build from source
 
 ### 1. Build and Install
 
 - *Requires a running [Urbit](https://docs.urbit.org/get-on-urbit) ship, real or fake, running on a machine you have terminal access to.*
-- *Requires [peru](https://github.com/buildinspace/peru) package manager. Install and set that up if you don't have it already. Make sure `peru --version` works.*
+- *Requires [Zig](https://ziglang.org/download/) 0.15 or newer. Make sure `zig version` works.*
 
 Create and mount the desk on your Urbit ship:
 
@@ -34,13 +50,11 @@ Create and mount the desk on your Urbit ship:
 > |mount %mcp
 ```
 
-In the project folder, run the [build script](build.sh). By default this will
-install dependencies into `/dist` in this folder. Use the `-p` argument to
-additionally copy the source and its dependencies into your ship's desk. This
-script will take a minute if it's your first time running it.
+In the `urbit-mcp` folder, run `zig build`. By default this will install dependencies into `/dist` in this folder. Use the `-Ddesk` option to additionally replace the contents of your ship's desk with your source desk.
 
 ```bash
-$ ./build.sh -p ~/path/to/zod/mcp
+$ cd urbit-mcp
+$ zig build -Ddesk=~/path/to/zod/mcp
 ```
 
 ```dojo
@@ -75,7 +89,7 @@ The console has three tabs:
   OAuth providers can be assigned to upstreams and automatically renew
   expired sessions.
 
-### 3A. Register with Claude
+### 3A. Register with Claude Code
 
 In the **Endpoint** tab, click `GEN` to mint an API key (or `SET` to use your
 own). Then copy the snippet shown under `CLAUDE CLI`, which will look like:
@@ -106,39 +120,29 @@ args = [
 
 ### Tools
 
-Just ask! You can see the default tools [here](./desk/fil/default/mcp/tools).
+Just ask! You can see the default tools [here](./desk/fil/mcp/tools).
 
 You can ask your LLM to add new Tools. Give it a description (and ideally, examples) and it will do its best, or provide a Hoon thread for it to adapt to run in `%mcp-server`. Threads in `%mcp-server` must be of signature `$-((map @t argument:tool:mcp) shed:khan)`.
 
 ### Prompts (slash commands)
 
-MCP prompts for most default tools are available as slash commands, using the format `/mcp__<mcp server>__<tool name>`.
+Depending on your agent harness, MCP prompts for most default tools may be available as slash commands, e.g. `/mcp__zod__<tool name>`.
 
-```
-/mcp__zod__commit-desk mcp
-```
-
-Running these will append a predefined prompt to the conversation and call out to the LLM provider.
-
-Type `/` in Claude Code to see available Prompts.
-
-You can ask your LLM to add new Prompts. These can be any reusable snippet of text you like.
+Running these will append a prompt snippet to the conversation and call out to the LLM provider. You can ask your LLM to add new Prompts.
 
 ### Resources (@ mentions)
 
-MCP resources can be referenced with an `@` mention to pull the contents into the context window.
+Depending on your agent harness, MCP resources may be referenced with an `@` mention to pull their contents into the context window.
 
 ```
 @zod:https://docs.urbit.org/llms.txt
 ```
 
-Type `@` in Claude Code to see available Resources.
-
-You can ask your LLM to add new Resources by providing an `https://` URI to a public webpage or a `beam://` URI to a file in Clay.
+You can ask your LLM to add new Resources by providing an `https://` URI to a public webpage or a `beam://` URI to a file in your Urbit's Clay filesystem.
 
 ## Contributing
 
-This repo requires commits to be signed with a [Groundwire](https://groundwire.network) identity. PRs with unsigned commits will be rejected by CI.
+This repo requires commits to be signed with a [Groundwire](https://groundwire.io/) identity. PRs with unsigned commits will be rejected by CI.
 
 ### Setup commit signing
 
@@ -175,7 +179,7 @@ git rebase --exec "true" HEAD~N
 
 ### Build Commands
 
-- `./build.sh` - Build full desk
-- `./build.sh build-dev` - Build dependencies
-- `./build.sh clean` - Clean build directories
-- `./build.sh -p /path/to/desk` - Build and copy to a ship's desk
+- `zig build` - Build `/desk` and dependencies into `/dist`
+- `zig build clean` - Remove `/dist`
+- `zig build clear` - Remove `/dist` and cached dependencies from `.zig-cache/desk-deps`
+- `zig build -Ddesk=~/path/to/desk` - Build, clean the target desk directory, and copy `dist` into it; supports absolute and relative paths
