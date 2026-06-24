@@ -572,12 +572,20 @@
       ?:  &(=(%'tools/call' method) code-mode)
         =/  params=json  (get-json-field u.jon 'params')
         =/  tool-name-called=@t  (get-json-string params 'name')
+        ?:  =('list_upstreams' tool-name-called)
+          (handle-meta-list-upstreams eyre-id req-id)
         ?:  =('mcp_list_upstreams' tool-name-called)
           (handle-meta-list-upstreams eyre-id req-id)
+        ?:  =('search' tool-name-called)
+          (handle-meta-search eyre-id req-id params)
         ?:  =('mcp_search' tool-name-called)
           (handle-meta-search eyre-id req-id params)
+        ?:  =('describe' tool-name-called)
+          (handle-meta-describe eyre-id req-id params)
         ?:  =('mcp_describe' tool-name-called)
           (handle-meta-describe eyre-id req-id params)
+        ?:  =('call' tool-name-called)
+          (handle-meta-call eyre-id req u.jon params)
         ?:  =('mcp_call' tool-name-called)
           (handle-meta-call eyre-id req u.jon params)
         ::  unknown meta-name; fall through to normal routing
@@ -1095,7 +1103,7 @@
     ?^  found  found
     $(catalog t.catalog)
   ::
-  ::  meta tool: mcp_list_upstreams → return id/name/url for every
+  ::  meta tool: list_upstreams: return id/name/url for every
   ::  configured upstream so the agent can pick which one to search.
   ::
   ++  handle-meta-list-upstreams
@@ -1128,7 +1136,7 @@
     :_  this
     (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
   ::
-  ::  meta tool: mcp_search → run search-meta and wrap as MCP result
+  ::  meta tool: search: run search-meta and wrap as MCP result
   ::
   ++  handle-meta-search
     |=  [eyre-id=@ta req-id=json params=json]
@@ -1160,7 +1168,7 @@
     :_  this
     (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
   ::
-  ::  meta tool: mcp_describe → return one tool's full schema
+  ::  meta tool: describe: return one tool's full schema
   ::
   ++  handle-meta-describe
     |=  [eyre-id=@ta req-id=json params=json]
@@ -1189,7 +1197,7 @@
     :_  this
     (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
   ::
-  ::  meta tool: mcp_call → look up the underlying tool and route it
+  ::  meta tool: call: look up the underlying tool and route it
   ::  through the existing route-call by rewriting the params with
   ::  the inner name + arguments. this preserves all the existing
   ::  per-server auth, openapi, proxy, oauth header, response wrap
@@ -1209,7 +1217,7 @@
       :_  this
       %-  give-http  :^  eyre-id  400
       ~[cors ['content-type' 'application/json']]
-      (some (as-octs:mimes:html '{"error":"mcp_call: missing name"}'))
+      (some (as-octs:mimes:html '{"error":"call: missing name"}'))
     ::  rewrite the params object so it looks like a direct
     ::  tools/call invocation: {name: <inner>, arguments: <inner>}
     =/  rewritten-params=json
@@ -1863,7 +1871,7 @@
 ::
 ++  http-methods  (silt ~['get' 'post' 'put' 'patch' 'delete'])
 ::
-::  the three meta-tools exposed when code-mode is enabled. these
+::  the meta-tools exposed when code-mode is enabled. these
 ::  collapse the entire upstream tool catalog (which can be hundreds
 ::  of operations across many servers) into a discovery interface
 ::  the LLM can use without paying token cost for the full list.
@@ -1876,9 +1884,9 @@
   ^-  (list json)
   =/  list-upstreams-tool=json
     %-  pairs:enjs:format
-    :~  ['name' s+'mcp_list_upstreams']
+    :~  ['name' s+'list_upstreams']
         :-  'description'
-        s+'List all configured upstream servers (id, display name, url, enabled state). Use this first to discover which upstreams exist, then call mcp_search with "server:<id>" (or pass the server arg) to enumerate the tools on that upstream, mcp_describe to get a tool schema, and mcp_call to invoke it.'
+        s+'List all configured upstream servers (id, display name, url, enabled state). Use this first to discover which upstreams exist, then call search with "server:<id>" (or pass the server arg) to enumerate the tools on that upstream, describe to get a tool schema, and call to invoke it.'
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
@@ -1888,9 +1896,9 @@
     ==
   =/  search-tool=json
     %-  pairs:enjs:format
-    :~  ['name' s+'mcp_search']
+    :~  ['name' s+'search']
         :-  'description'
-        s+'Search across all configured upstream servers for available tools. Returns matching tool names with brief descriptions. Use this to discover what tools exist before calling mcp_describe for the full schema of a specific tool, then mcp_call to invoke. Query syntax: plain keywords match against tool name and description; "server:<id>" filters to one upstream (e.g. "server:linear", "server:google issue"). Combine: "server:linear create" finds linear creation tools.'
+        s+'Search across all configured upstream servers for available tools. Returns matching tool names with brief descriptions. Use this to discover what tools exist before calling describe for the full schema of a specific tool, then call to invoke. Query syntax: plain keywords match against tool name and description; "server:<id>" filters to one upstream (e.g. "server:linear", "server:google issue"). Combine: "server:linear create" finds linear creation tools.'
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
@@ -1917,9 +1925,9 @@
     ==
   =/  describe-tool=json
     %-  pairs:enjs:format
-    :~  ['name' s+'mcp_describe']
+    :~  ['name' s+'describe']
         :-  'description'
-        s+'Return the full schema (description + inputSchema) for a specific tool by its full prefixed name (e.g. "linear_create_issue"). Use after mcp_search to get the details needed to construct an mcp_call.'
+        s+'Return the full schema (description + inputSchema) for a specific tool by its full prefixed name (e.g. "linear_create_issue"). Use after search to get the details needed to construct a call.'
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
@@ -1936,9 +1944,9 @@
     ==
   =/  call-tool=json
     %-  pairs:enjs:format
-    :~  ['name' s+'mcp_call']
+    :~  ['name' s+'call']
         :-  'description'
-        s+'Invoke any tool from any configured upstream by its full prefixed name. Equivalent to calling the tool directly but the LLM does not need it to appear in the flat tools list — useful when code-mode collapses the catalog. Pass arguments matching the inputSchema of the tool (use mcp_describe to discover this).'
+        s+'Invoke any tool from any configured upstream by its full prefixed name. Equivalent to calling the tool directly but the LLM does not need it to appear in the flat tools list; useful when code-mode collapses the catalog. Pass arguments matching the inputSchema of the tool (use describe to discover this).'
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
