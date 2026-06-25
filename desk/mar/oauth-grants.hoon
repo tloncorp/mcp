@@ -1,49 +1,17 @@
-::  oauth-grants: sanitized grants snapshot from %oauth
+::  oauth-grants: compatibility mark
 ::
-::    Keep the snapshot molds desk-local so 408 Clay can prebuild this mark
-::    during Kelvin upgrade without resolving /sur/oauth while building marks.
+::    %oauth now returns /x/grants as %json directly. Keep this noun-only
+::    mark so older live desks that still contain %oauth-grants can survive
+::    Clay/Kelvin mark prebuilds without resolving OAuth state molds.
 ::
-=,  |%
-    +$  oauth-grant
-      $:  access-token=@t
-          refresh-token=(unit @t)
-          token-type=@t
-          expires-at=(unit @da)
-          scopes=@t
-          provider-id=@tas
-      ==
-    +$  oauth-grants
-      [now=@da gs=(map @tas oauth-grant)]
-    --
-|_  snap=oauth-grants
+|_  val=*
 ++  grad  %noun
 ++  grow
   |%
-  ++  noun  snap
-  ++  json
-    =,  enjs:format
-    :-  %a
-    %+  turn  ~(tap by gs.snap)
-    |=  [provider-id=@tas grant=oauth-grant]
-    =/  is-expired=?
-      ?~  expires-at.grant  %.n
-      (lth u.expires-at.grant now.snap)
-    %-  pairs
-    :~  ['provider' s+(scot %tas provider-id)]
-        ['connected' b+!is-expired]
-        ['tokenType' s+token-type.grant]
-        ['scopes' s+scopes.grant]
-        ['hasRefreshToken' b+?=(^ refresh-token.grant)]
-      ::
-        :-  'expiresAt'
-        ?~  expires-at.grant  ~
-        s+(scot %da u.expires-at.grant)
-      ::
-        ['expired' b+is-expired]
-    ==
+  ++  noun  val
   --
 ++  grab
   |%
-  ++  noun  oauth-grants
+  ++  noun  *
   --
 --

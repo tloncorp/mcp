@@ -1,6 +1,6 @@
 /-  mcp
 /+  dbug, verb, server, default-agent, pf=pretty-file,
-    jut=json-utils, *rpc, beam-uri=uri-beam, scry-uri=uri-scry
+    jut=json-utils, beam-uri=uri-beam, scry-uri=uri-scry
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
@@ -21,6 +21,70 @@
     (wash [0 80] tank)
   |=  =tape
   (crip tape)
+::
+++  rpc
+  |%
+  +$  response
+    $%  [%result id=@t result=json]
+        [%error id=@t code=@ta message=@t data=(unit json)]
+    ==
+  ++  make-response
+    |=  res=response
+    ^-  json
+    ?-    -.res
+        %result
+      %-  pairs:enjs:format
+      :~  ['id' n+id.res]
+          ['jsonrpc' s+'2.0']
+          ['result' result.res]
+      ==
+    ::
+        %error
+      %-  pairs:enjs:format
+      :~  ['id' n+id.res]
+          ['jsonrpc' s+'2.0']
+          :-  'error'
+          %-  pairs:enjs:format
+          %+  welp
+            :~  ['code' n+code.res]
+                ['message' s+message.res]
+            ==
+          ?~  data.res
+            ~
+          :~  ['data' u.data.res]
+          ==
+      ==
+    ==
+  ++  result
+    |=  [id=@t res=json]
+    (make-response [%result id res])
+  ++  error
+    |%
+    ++  code
+      |%
+      ++  parse-error       ~.-32700
+      ++  invalid-request   ~.-32600
+      ++  method-not-found  ~.-32601
+      ++  invalid-params    ~.-32602
+      ++  internal-error    ~.-32603
+      --
+    ++  parse
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id parse-error:code message data])
+    ++  request
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id invalid-request:code message data])
+    ++  method
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id method-not-found:code message data])
+    ++  params
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id invalid-params:code message data])
+    ++  internal
+      |=  [id=@ta message=@t data=(unit json)]
+      (make-response [%error id internal-error:code message data])
+    --
+  --
 ::
 ++  mark-mime
   |=  =mark
@@ -224,61 +288,10 @@
 ++  on-load
   |=  old-state=vase
   ^-  (quip card _this)
-  =/  oauth-card=card
-    :*  %pass  /eyre/connect/oauth
-        %arvo  %e  %connect
-        [[~ ~['oauth']] dap.bowl]
-    ==
-  =/  well-known-card=card
-    :*  %pass  /eyre/connect/well-known
-        %arvo  %e  %connect
-        [[~ ~['.well-known']] dap.bowl]
-    ==
-  =/  rebind-cards=(list card)
-    :~  well-known-card  oauth-card  ==
-  =/  old-2  (mule |.(!<(state-2 old-state)))
-  ?:  ?=(%& -.old-2)
-    :_  this(state p.old-2)
-    rebind-cards
-  =/  old-1  (mule |.(!<(state-1 old-state)))
-  ?:  ?=(%& -.old-1)
-    =/  new=state-2
-      :*  %2
-          tools.p.old-1
-          prompts.p.old-1
-          resources.p.old-1
-          *(set template:resource:mcp)
-          *(map @ta session:mcp)
-          auth-token.p.old-1
-      ==
-    :_  this(state new)
-    rebind-cards
-  =/  old-main-0  (mule |.(!<(state-main-0 old-state)))
-  ?:  ?=(%& -.old-main-0)
-    =/  new=state-2
-      :*  %2
-          tools.p.old-main-0
-          prompts.p.old-main-0
-          resources.p.old-main-0
-          templates.p.old-main-0
-          *(map @ta session:mcp)
-          ''
-      ==
-    :_  this(state new)
-    rebind-cards
-  =/  old-0  (mule |.(!<(state-0 old-state)))
-  ?:  ?=(%& -.old-0)
-    =/  new=state-2
-      :*  %2
-          tools.p.old-0
-          prompts.p.old-0
-          resources.p.old-0
-          *(set template:resource:mcp)
-          *(map @ta session:mcp)
-          ''
-      ==
-    :_  this(state new)
-    rebind-cards
+  ::  Persisted MCP feature state contains gates from /sur/mcp. Across
+  ::  Kelvin upgrades those old gates can fail to nest into the new molds
+  ::  and block Gall load. Rebuild features from /fil/mcp instead; %mcp-proxy
+  ::  resyncs the auth token on its own load.
   on-init
 ::
 ++  on-init
