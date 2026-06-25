@@ -850,7 +850,7 @@
       ::  during Kelvin upgrade. Never exposes access/refresh tokens.
       ::
       [%x %grants ~]
-    ``json+!>((build-grants-scry-json ~))
+    ``json+!>((build-grants-scry-json now.bowl))
   ::
       [%x %has-grant @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
@@ -1314,7 +1314,7 @@
   ==
 ::
 ++  build-grants-scry-json
-  |=  ~
+  |=  at=@da
   ^-  json
   =,  enjs:format
   :-  %a
@@ -1322,7 +1322,7 @@
   |=  [pid=provider-id:oauth gra=grant:oauth]
   =/  is-expired=?
     ?~  expires-at.gra  %.n
-    (lth u.expires-at.gra now.bowl)
+    (lth u.expires-at.gra at)
   %-  pairs
   :~  ['provider' s+(scot %tas pid)]
       ['connected' b+!is-expired]
