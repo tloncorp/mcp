@@ -7,10 +7,10 @@ const Action = enum {
 };
 
 const RepoImport = struct {
-    name: []const u8,          // any name
-    url: []const u8,           // git repo url
-    commit: []const u8,        // commit hash
-    prefix: []const u8,        // repository prefix, omitted from /dist
+    name: []const u8, // any name
+    url: []const u8, // git repo url
+    commit: []const u8, // commit hash
+    prefix: []const u8, // repository prefix, omitted from /dist
     paths: []const []const u8, // relative or prefix-qualified filepaths
 };
 
