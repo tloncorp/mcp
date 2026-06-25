@@ -846,12 +846,11 @@
     ``noun+!>(providers)
   ::
       ::  /x/grants: sanitized grant list for platform clients.
-      ::  Returns %oauth-grants — gall converts to %json via
-      ::  /mar/oauth-grants/hoon when the scry is /gx/oauth/grants/json.
-      ::  Never exposes access/refresh tokens.
+      ::  Return %json directly so Clay does not need a custom grants mark
+      ::  during Kelvin upgrade. Never exposes access/refresh tokens.
       ::
       [%x %grants ~]
-    ``oauth-grants+!>([now.bowl grants])
+    ``json+!>((build-grants-scry-json ~))
   ::
       [%x %has-grant @ ~]
     =/  pid=provider-id:oauth  `@tas`i.t.t.path
@@ -1312,6 +1311,30 @@
           s+(scot %da u.expires-at.gra)
           ['hasRefreshToken' b+?=(^ refresh-token.gra)]
       ==
+  ==
+::
+++  build-grants-scry-json
+  |=  ~
+  ^-  json
+  =,  enjs:format
+  :-  %a
+  %+  turn  ~(tap by grants)
+  |=  [pid=provider-id:oauth gra=grant:oauth]
+  =/  is-expired=?
+    ?~  expires-at.gra  %.n
+    (lth u.expires-at.gra now.bowl)
+  %-  pairs
+  :~  ['provider' s+(scot %tas pid)]
+      ['connected' b+!is-expired]
+      ['tokenType' s+token-type.gra]
+      ['scopes' s+scopes.gra]
+      ['hasRefreshToken' b+?=(^ refresh-token.gra)]
+    ::
+      :-  'expiresAt'
+      ?~  expires-at.gra  ~
+      s+(scot %da u.expires-at.gra)
+    ::
+      ['expired' b+is-expired]
   ==
 ::
 ::  HTTP helpers
