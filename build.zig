@@ -65,6 +65,19 @@ const dependencies = [_]RepoImport{
 };
 
 const dependency_cache_dir = ".zig-cache/desk-deps";
+const minimum_git_version = GitVersion{ .major = 2, .minor = 25, .patch = 0 };
+
+const GitVersion = struct {
+    major: u32,
+    minor: u32,
+    patch: u32,
+
+    fn order(a: GitVersion, b: GitVersion) std.math.Order {
+        if (a.major != b.major) return std.math.order(a.major, b.major);
+        if (a.minor != b.minor) return std.math.order(a.minor, b.minor);
+        return std.math.order(a.patch, b.patch);
+    }
+};
 
 const DeskStep = struct {
     step: std.Build.Step,
@@ -118,6 +131,8 @@ pub fn build(b: *std.Build) void {
 }
 
 fn buildDesk(step: *std.Build.Step, allocator: std.mem.Allocator, copy_target: ?[]const u8) !void {
+    try requireGitVersion(step);
+
     if (!pathExists("desk") and !pathExists("desk-dev")) {
         return step.fail("neither /desk nor /desk-dev directory found", .{});
     }
@@ -190,6 +205,69 @@ fn ensureRepoImport(step: *std.Build.Step, repo_path: []const u8, dep: RepoImpor
     }
 
     try run(step, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", dep.commit });
+}
+
+fn requireGitVersion(step: *std.Build.Step) !void {
+    const result = std.process.Child.run(.{
+        .allocator = step.owner.allocator,
+        .argv = &.{ "git", "--version" },
+        .max_output_bytes = 16 * 1024,
+    }) catch |err| {
+        return step.fail("failed to run git --version: {s}", .{@errorName(err)});
+    };
+
+    switch (result.term) {
+        .Exited => |code| {
+            if (code != 0) {
+                if (result.stderr.len > 0) {
+                    std.debug.print("{s}", .{result.stderr});
+                }
+                return step.fail("git --version exited with code {d}", .{code});
+            }
+        },
+        else => return step.fail("git --version failed", .{}),
+    }
+
+    const version = parseGitVersion(result.stdout) orelse {
+        return step.fail("could not parse git version from: {s}", .{std.mem.trim(u8, result.stdout, " \t\r\n")});
+    };
+
+    if (version.order(minimum_git_version) == .lt) {
+        return step.fail(
+            "git {d}.{d}.{d} or newer is required; found {s}",
+            .{
+                minimum_git_version.major,
+                minimum_git_version.minor,
+                minimum_git_version.patch,
+                std.mem.trim(u8, result.stdout, " \t\r\n"),
+            },
+        );
+    }
+}
+
+fn parseGitVersion(output: []const u8) ?GitVersion {
+    const prefix = "git version ";
+    const trimmed = std.mem.trim(u8, output, " \t\r\n");
+    if (!std.mem.startsWith(u8, trimmed, prefix)) return null;
+
+    const rest = trimmed[prefix.len..];
+    const version_text = rest[0 .. std.mem.indexOfScalar(u8, rest, ' ') orelse rest.len];
+
+    var parts = std.mem.splitScalar(u8, version_text, '.');
+    const major_text = parts.next() orelse return null;
+    const minor_text = parts.next() orelse return null;
+    const patch_text = parts.next() orelse return null;
+
+    const patch_end = for (patch_text, 0..) |char, i| {
+        if (!std.ascii.isDigit(char)) break i;
+    } else patch_text.len;
+    if (patch_end == 0) return null;
+
+    return .{
+        .major = std.fmt.parseInt(u32, major_text, 10) catch return null,
+        .minor = std.fmt.parseInt(u32, minor_text, 10) catch return null,
+        .patch = std.fmt.parseInt(u32, patch_text[0..patch_end], 10) catch return null,
+    };
 }
 
 fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const u8) !void {
@@ -275,6 +353,19 @@ test "dependency paths may include or omit their prefix" {
     try std.testing.expectEqualStrings("mar/example.hoon", strippedPath("desk", "desk/mar/example.hoon"));
     try std.testing.expectEqualStrings("mar/example.hoon", strippedPath("desk", "mar/example.hoon"));
     try std.testing.expectEqualStrings("desk-tools/example.hoon", strippedPath("desk", "desk-tools/example.hoon"));
+}
+
+test "git version output is parsed" {
+    try std.testing.expectEqual(GitVersion{ .major = 2, .minor = 50, .patch = 1 }, parseGitVersion("git version 2.50.1 (Apple Git-155)\n").?);
+    try std.testing.expectEqual(GitVersion{ .major = 2, .minor = 25, .patch = 0 }, parseGitVersion("git version 2.25.0\n").?);
+    try std.testing.expectEqual(GitVersion{ .major = 2, .minor = 39, .patch = 5 }, parseGitVersion("git version 2.39.5.windows.1\n").?);
+    try std.testing.expect(parseGitVersion("not git 2.50.1") == null);
+}
+
+test "git version ordering" {
+    try std.testing.expect((GitVersion{ .major = 2, .minor = 24, .patch = 9 }).order(minimum_git_version) == .lt);
+    try std.testing.expect((GitVersion{ .major = 2, .minor = 25, .patch = 0 }).order(minimum_git_version) == .eq);
+    try std.testing.expect((GitVersion{ .major = 2, .minor = 50, .patch = 1 }).order(minimum_git_version) == .gt);
 }
 
 fn expandHomePath(allocator: std.mem.Allocator, step: *std.Build.Step, path: []const u8) ![]const u8 {
