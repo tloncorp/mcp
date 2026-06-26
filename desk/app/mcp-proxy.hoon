@@ -805,16 +805,6 @@
             (scot %tas sid)
             '. Set the upstream URL in mcp-proxy or include servers[0].url in the OpenAPI spec."}'
         ==
-      ::  pull the operation's parameter list once; used for both the
-      ::  query string (only `in: query` args belong there) and the
-      ::  body (path + query args must be excluded from the payload).
-      =/  op-params=(list json)
-        ?.  ?=([%o *] operation.u.op)  ~
-        =/  p=(unit json)  (~(get by p.operation.u.op) 'parameters')
-        ?~  p  ~
-        ?.  ?=([%a *] u.p)  ~
-        p.u.p
-      =/  query-names=(set @t)  (query-param-names op-params)
       =/  api-url=@t
         =/  base-with-path=@t  (build-api-url base-url path.u.op args)
         =/  excluded=(set @t)  (~(put in path-params) 'body')
@@ -831,12 +821,6 @@
             =(req-method %'PUT')
             =(req-method %'PATCH')
         ==
-      ::  strip both path-template params (host, name, id, …) and
-      ::  declared query params from the body. OpenAPI puts each
-      ::  parameter in exactly one place; sending them duplicated in
-      ::  the payload can silently clobber a body field that happens
-      ::  to share a name with one of them.
-      =/  body-exclude=(set @t)  (~(uni in path-params) query-names)
       =/  body=(unit octs)
         ?.  has-body  ~
         `(as-octs:mimes:html (en:json:html (get-request-body-json args)))
@@ -2197,108 +2181,6 @@
     [tool $(ml t.ml)]
   $(items t.items, result (weld path-tools result))
 ::
-::  +resolve-ref: follow a `#/components/schemas/<name>` $ref into the cached
-::  OpenAPI spec. Returns the target schema, or ~ if the ref shape is
-::  unrecognized / target is missing.
-::
-++  resolve-ref
-  |=  [spec=json ref=@t]
-  ^-  (unit json)
-  =/  ref-t=tape  (trip ref)
-  ?.  =((scag 21 ref-t) "#/components/schemas/")  ~
-  =/  name=@t  (crip (slag 21 ref-t))
-  ?.  ?=(%o -.spec)  ~
-  =/  comps=(unit json)  (~(get by p.spec) 'components')
-  ?.  ?&(?=(^ comps) ?=(%o -.u.comps))  ~
-  =/  schemas=(unit json)  (~(get by p.u.comps) 'schemas')
-  ?.  ?&(?=(^ schemas) ?=(%o -.u.schemas))  ~
-  (~(get by p.u.schemas) name)
-::
-::  +inline-refs: walk a JSON Schema fragment and inline every internal $ref it
-::  encounters. Caps recursion depth so self-referential schemas can't blow up.
-::  Unresolvable refs (external, malformed, missing target) pass through unchanged.
-::
-++  inline-refs
-  |=  [spec=json schema=json depth=@ud]
-  ^-  json
-  ?:  =(0 depth)  schema
-  ?~  schema  schema
-  ?-  -.schema
-      ?(%n %s %b)  schema
-      %a
-    [%a (turn p.schema |=(j=json (inline-refs spec j (dec depth))))]
-      %o
-    =/  ref=(unit json)  (~(get by p.schema) '$ref')
-    ?:  ?&(?=(^ ref) ?=([%s *] u.ref))
-      =/  res=(unit json)  (resolve-ref spec p.u.ref)
-      ?~  res  schema
-      (inline-refs spec u.res (dec depth))
-    :-  %o
-    %-  ~(run by p.schema)
-    |=  v=json
-    (inline-refs spec v (dec depth))
-  ==
-::
-::  +empty-input-schema: the {type:object, properties:{}, required:[]} stub.
-::  Used as a fallback when an operation declares no body or parameters.
-::
-++  empty-input-schema
-  ^-  json
-  (pairs:enjs:format ~[['type' s+'object'] ['properties' [%o ~]] ['required' a+~]])
-::
-::  +get-op-input-schema: derive an MCP-style `inputSchema` from an OpenAPI
-::  operation. Walks path/query `parameters` and the `requestBody`
-::  `application/json` `schema` (resolving $refs through inline-refs) and
-::  merges them into a single {type:object, properties, required} JSON
-::  Schema object — the shape MCP clients expect for tool input.
-::
-++  get-op-input-schema
-  |=  [spec=json op=json]
-  ^-  json
-  ?.  ?=(%o -.op)  empty-input-schema
-  ::  parameters → flat props + required entries
-  =/  param-pairs=[ps=(map @t json) rs=(list json)]
-    =/  pj=(unit json)  (~(get by p.op) 'parameters')
-    ?.  ?&(?=(^ pj) ?=(%a -.u.pj))  [*(map @t json) ~]
-    %+  roll  p.u.pj
-    |=  [param=json acc=[ps=(map @t json) rs=(list json)]]
-    ^+  acc
-    ?.  ?=(%o -.param)  acc
-    =/  nm=@t  (get-json-string param 'name')
-    ?:  =('' nm)  acc
-    =/  sch=(unit json)  (~(get by p.param) 'schema')
-    =/  out=json
-      ?~  sch  (pairs:enjs:format ~[['type' s+'string']])
-      (inline-refs spec u.sch 16)
-    =/  req=?
-      =/  r=(unit json)  (~(get by p.param) 'required')
-      ?&(?=(^ r) ?=([%b *] u.r) p.u.r)
-    :-  (~(put by ps.acc) nm out)
-    ?:(req [s+nm rs.acc] rs.acc)
-  ::  requestBody.content."application/json".schema → resolve + merge top-level
-  =/  body-pairs=[ps=(map @t json) rs=(list json)]
-    =/  bj=(unit json)  (~(get by p.op) 'requestBody')
-    ?.  ?&(?=(^ bj) ?=(%o -.u.bj))  [*(map @t json) ~]
-    =/  ct=(unit json)  (~(get by p.u.bj) 'content')
-    ?.  ?&(?=(^ ct) ?=(%o -.u.ct))  [*(map @t json) ~]
-    =/  aj=(unit json)  (~(get by p.u.ct) 'application/json')
-    ?.  ?&(?=(^ aj) ?=(%o -.u.aj))  [*(map @t json) ~]
-    =/  sch=(unit json)  (~(get by p.u.aj) 'schema')
-    ?~  sch  [*(map @t json) ~]
-    =/  res=json  (inline-refs spec u.sch 16)
-    ?.  ?=(%o -.res)  [*(map @t json) ~]
-    =/  rp=(unit json)  (~(get by p.res) 'properties')
-    =/  rr=(unit json)  (~(get by p.res) 'required')
-    :-  ?.  ?&(?=(^ rp) ?=(%o -.u.rp))  *(map @t json)
-        p.u.rp
-    ?.  ?&(?=(^ rr) ?=(%a -.u.rr))  ~
-    p.u.rr
-  %-  pairs:enjs:format
-  :~  ['type' s+'object']
-      ['properties' [%o (~(uni by ps.param-pairs) ps.body-pairs)]]
-      ['required' [%a (weld rs.param-pairs rs.body-pairs)]]
-  ==
-::
 ::  find an OpenAPI operation by operationId and return [path method operation]
 ::
 ++  find-operation
@@ -2411,22 +2293,6 @@
 ::
 ::  build query string from OpenAPI params + args
 ::
-::  +query-param-names: read OpenAPI parameters, return the set of
-::  names declared `in: query`. Used both to build the query string
-::  and to keep those names out of the body.
-++  query-param-names
-  |=  params=(list json)
-  ^-  (set @t)
-  %-  silt
-  %+  murn  params
-  |=  param=json
-  ^-  (unit @t)
-  ?.  ?=(%o -.param)  ~
-  ?.  =('query' (get-json-string param 'in'))  ~
-  =/  nm=@t  (get-json-string param 'name')
-  ?:  =('' nm)  ~
-  `nm
-::
 ++  build-query-string
   |=  [params=(list json) args=json]
   ^-  @t
@@ -2530,22 +2396,6 @@
   ?~  close  result
   =/  param=@t  (crip (scag u.close rest))
   $(t (slag +(u.close) rest), result (~(put in result) param))
-::
-::  +json-without-keys: return args minus any top-level keys in exclude.
-::  Used to keep path-template params out of the request body — OpenAPI
-::  semantics put path params in the URL, not the payload, and a body
-::  field that shares a name with a path param would otherwise get
-::  silently clobbered by the path value when mcp-proxy flattens the
-::  tool-input back into a JSON body.
-++  json-without-keys
-  |=  [args=json exclude=(set @t)]
-  ^-  json
-  ?.  ?=(%o -.args)  args
-  =/  keys=(list @t)  ~(tap in exclude)
-  =/  m  p.args
-  |-  ^-  json
-  ?~  keys  [%o m]
-  $(keys t.keys, m (~(del by m) i.keys))
 ::
 ++  build-all-args-query
   |=  [args=json exclude=(set @t)]
