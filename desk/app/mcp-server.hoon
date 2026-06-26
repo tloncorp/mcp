@@ -268,6 +268,19 @@
   ?~  headers  ~
   ?:  =((cass (trip key.i.headers)) "x-api-key")  `value.i.headers
   $(headers t.headers)
+::
+::  %mcp-proxy owns the API key.  %mcp-server caches it for direct /mcp
+::  requests, but can lose that cache when it rebuilds feature state on load.
+::  Read the proxy key on demand so Gall revive ordering cannot desync them.
+::
+++  proxy-auth-token
+  |=  [our=@p now=@da cached=@t]
+  ^-  @t
+  =/  pax=path
+    /(scot %p our)/mcp-proxy/(scot %da now)/client-key/noun
+  =/  res  (mule |.(.^(@t %gx pax)))
+  ?.  ?=(%& -.res)  cached
+  p.res
 --
 %-  agent:dbug
 ^-  agent:gall
@@ -617,14 +630,17 @@
       :_  this
       (json-response eyre-id 400 err)
     ::  auth: require x-api-key header matching the proxy-managed token
-    ?:  =('' auth-token)
+    =/  active-token=@t
+      (proxy-auth-token our.bowl now.bowl auth-token)
+    =.  auth-token  active-token
+    ?:  =('' active-token)
       :_  this
       (send-event eyre-id (internal:error:rpc '0' 'Server not configured' ~))
     =/  supplied=(unit @t)  (get-api-key header-list.request.req)
     ?~  supplied
       :_  this
       (send-event eyre-id (internal:error:rpc '0' 'Missing x-api-key header' ~))
-    ?.  =(u.supplied auth-token)
+    ?.  =(u.supplied active-token)
       :_  this
       (send-event eyre-id (internal:error:rpc '0' 'Invalid x-api-key' ~))
     ?+  method.request.req
