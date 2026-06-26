@@ -2176,7 +2176,7 @@
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
-          ['inputSchema' (operation-input-schema spec path path-item op)]
+          ['inputSchema' (operation-input-schema spec path-str path-item op)]
       ==
     [tool $(ml t.ml)]
   $(items t.items, result (weld path-tools result))
