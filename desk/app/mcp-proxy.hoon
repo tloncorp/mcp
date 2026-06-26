@@ -807,7 +807,8 @@
         ==
       =/  api-url=@t
         =/  base-with-path=@t  (build-api-url base-url path.u.op args)
-        =/  qs=@t  (build-all-args-query args path-params)
+        =/  excluded=(set @t)  (~(put in path-params) 'body')
+        =/  qs=@t  (build-all-args-query args excluded)
         (cat 3 base-with-path qs)
       ::  build body for POST/PUT/PATCH
       =/  req-method=method:http
@@ -822,7 +823,7 @@
         ==
       =/  body=(unit octs)
         ?.  has-body  ~
-        `(as-octs:mimes:html (en:json:html args))
+        `(as-octs:mimes:html (en:json:html (get-request-body-json args)))
       =?  out-headers  has-body
         [['content-type' 'application/json'] out-headers]
       ::  store eyre-id and use behn to respond from on-arvo
@@ -2170,17 +2171,12 @@
           !=(~ (find "webhook" lo))
       ==
     ?:  skip  $(ml t.ml)
-    ::  build tool with empty schema (params added later if needed)
+    ::  build a tool schema from path/query parameters and requestBody
     =/  tool=json
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
-          :-  'inputSchema'
-          %-  pairs:enjs:format
-          :~  ['type' s+'object']
-              ['properties' [%o ~]]
-              ['required' a+~]
-          ==
+          ['inputSchema' (operation-input-schema path-item op)]
       ==
     [tool $(ml t.ml)]
   $(items t.items, result (weld path-tools result))
@@ -2292,7 +2288,7 @@
     $(result (snoc result c), i +(i))
   =/  param-name=@t  (crip (scag u.close rest))
   =/  param-val=@t  (get-json-string args param-name)
-  =/  val-tape=tape  (trip param-val)
+  =/  val-tape=tape  (trip (percent-encode param-val))
   $(result (weld result val-tape), i (add i (add 2 u.close)))
 ::
 ::  build query string from OpenAPI params + args
@@ -2304,15 +2300,18 @@
   =/  query-parts=(list @t)
     %+  murn  params
     |=  param=json
+    ?~  param  ~
     ?.  ?=(%o -.param)  ~
     =/  pin=@t  (get-json-string param 'in')
     ?.  =(pin 'query')  ~
     =/  pname=@t  (get-json-string param 'name')
     =/  val=(unit json)  (~(get by p.args) pname)
     ?~  val  ~
-    ?.  ?=(%s -.u.val)  ~
-    ?:  =('' p.u.val)  ~
-    `(cat 3 pname (cat 3 '=' p.u.val))
+    =/  v=@t  (json-query-value u.val)
+    ?:  =('' v)  ~
+    %+  rap  3
+    :~  (percent-encode pname)  '='  (percent-encode v)
+    ==
   ?~  query-parts  ''
   =/  result=@t  i.query-parts
   =/  rest=(list @t)  t.query-parts
@@ -2407,20 +2406,205 @@
     ?:  (~(has in exclude) key)  ~
     ::  skip null values — json `~` is the atom 0 and crashes -.val
     ?~  val  ~
-    =/  v=@t
-      ?+  -.val  ''
-        %s  p.val
-        %n  p.val
-        %b  ?:(p.val 'true' 'false')
-      ==
+    =/  v=@t  (json-query-value val)
     ?:  =('' v)  ~
-    `(cat 3 key (cat 3 '=' v))
+    %+  rap  3
+    :~  (percent-encode key)  '='  (percent-encode v)
+    ==
   ?~  parts  ''
   =/  result=@t  i.parts
   =/  rest=(list @t)  t.parts
   |-
   ?~  rest  (cat 3 '?' result)
   $(result (cat 3 result (cat 3 '&' i.rest)), rest t.rest)
+::
+++  get-request-body-json
+  |=  args=json
+  ^-  json
+  ?.  ?=(%o -.args)  [%o ~]
+  =/  body=(unit json)  (~(get by p.args) 'body')
+  ?~  body  args
+  u.body
+::
+++  operation-input-schema
+  |=  [path-item=json op=json]
+  ^-  json
+  =/  params=(list json)
+    %+  weld
+      (get-json-array path-item 'parameters')
+    (get-json-array op 'parameters')
+  =/  props=(map @t json)
+    %-  ~(gas by *(map @t json))
+    %+  murn  params
+    parameter-property
+  =/  reqs=(list json)
+    %+  murn  params
+    parameter-required
+  =/  body-prop=(unit [name=@t prop=json])
+    (request-body-property op)
+  =?  props  ?=(^ body-prop)
+    =/  [body-name=@t body-json=json]  u.body-prop
+    (~(put by props) body-name body-json)
+  =?  reqs  ?&(?=(^ body-prop) (request-body-required op))
+    (snoc reqs s+'body')
+  %-  pairs:enjs:format
+  :~  ['type' s+'object']
+      ['properties' [%o props]]
+      ['required' a+reqs]
+  ==
+::
+++  get-json-array
+  |=  [jon=json key=@t]
+  ^-  (list json)
+  =/  val=json  (get-json-field jon key)
+  ?~  val  ~
+  ?.  ?=(%a -.val)  ~
+  p.val
+::
+++  parameter-property
+  |=  param=json
+  ^-  (unit [@t json])
+  ?~  param  ~
+  ?.  ?=(%o -.param)  ~
+  =/  pin=@t  (get-json-string param 'in')
+  ?.  ?|(=(pin 'path') =(pin 'query'))  ~
+  =/  pname=@t  (get-json-string param 'name')
+  ?:  =('' pname)  ~
+  =/  desc=@t  (get-json-string param 'description')
+  =/  schema=json  (get-json-field param 'schema')
+  =/  typ=@t  (get-json-string param 'type')
+  =/  prop=json
+    ?~  schema
+      (simple-schema-property ?:(=('' typ) 'string' typ) desc)
+    ?.  ?=(%o -.schema)
+      (simple-schema-property ?:(=('' typ) 'string' typ) desc)
+    (schema-with-description schema desc)
+  `[pname prop]
+::
+++  parameter-required
+  |=  param=json
+  ^-  (unit json)
+  ?~  param  ~
+  ?.  ?=(%o -.param)  ~
+  =/  pin=@t  (get-json-string param 'in')
+  ?.  ?|(=(pin 'path') =(pin 'query'))  ~
+  =/  pname=@t  (get-json-string param 'name')
+  ?:  =('' pname)  ~
+  ?:  =(pin 'path')  `s+pname
+  =/  req=json  (get-json-field param 'required')
+  ?~  req  ~
+  ?.  ?=(%b -.req)  ~
+  ?.  p.req  ~
+  `s+pname
+::
+++  request-body-property
+  |=  op=json
+  ^-  (unit [name=@t prop=json])
+  =/  body=json  (get-json-field op 'requestBody')
+  ?~  body  ~
+  ?.  ?=(%o -.body)  ~
+  =/  desc=@t  (get-json-string body 'description')
+  =/  schema=json  (request-body-schema body)
+  =/  prop=json
+    ?~  schema
+      (simple-schema-property 'object' desc)
+    ?.  ?=(%o -.schema)
+      (simple-schema-property 'object' desc)
+    (schema-with-description schema desc)
+  `['body' prop]
+::
+++  request-body-required
+  |=  op=json
+  ^-  ?
+  =/  body=json  (get-json-field op 'requestBody')
+  ?~  body  %.n
+  ?.  ?=(%o -.body)  %.n
+  =/  req=json  (get-json-field body 'required')
+  ?~  req  %.n
+  ?.  ?=(%b -.req)  %.n
+  p.req
+::
+++  request-body-schema
+  |=  body=json
+  ^-  json
+  ?~  body  ~
+  ?.  ?=(%o -.body)  ~
+  =/  content=json  (get-json-field body 'content')
+  ?~  content  ~
+  ?.  ?=(%o -.content)  ~
+  =/  media=(unit json)  (~(get by p.content) 'application/json')
+  ?~  media  ~
+  (get-json-field u.media 'schema')
+::
+++  schema-with-description
+  |=  [schema=json desc=@t]
+  ^-  json
+  ?~  schema  ~
+  ?.  ?=(%o -.schema)  schema
+  =/  prop=(map @t json)  p.schema
+  =?  prop  ?&(!=('' desc) !(~(has by prop) 'description'))
+    (~(put by prop) 'description' s+desc)
+  [%o prop]
+::
+++  simple-schema-property
+  |=  [typ=@t desc=@t]
+  ^-  json
+  =/  fields=(list [@t json])
+    :~  ['type' s+typ]
+    ==
+  =?  fields  !=('' desc)
+    (snoc fields ['description' s+desc])
+  [%o (malt fields)]
+::
+++  json-query-value
+  |=  val=json
+  ^-  @t
+  ?~  val  ''
+  ?+  -.val  (en:json:html val)
+    %s  p.val
+    %n  p.val
+    %b  ?:(p.val 'true' 'false')
+  ==
+::
+++  percent-encode
+  |=  raw=@t
+  ^-  @t
+  =/  chars=tape  (trip raw)
+  =/  out=tape  ~
+  |-
+  ?~  chars
+    (crip out)
+  =/  c=@tD  i.chars
+  ?:  (url-unreserved c)
+    $(chars t.chars, out (snoc out c))
+  $(chars t.chars, out (weld out (percent-byte c)))
+::
+++  url-unreserved
+  |=  c=@
+  ^-  ?
+  ?|  ?&((gte c 'a') (lte c 'z'))
+      ?&((gte c 'A') (lte c 'Z'))
+      ?&((gte c '0') (lte c '9'))
+      =(c '-')
+      =(c '.')
+      =(c '_')
+      =(c '~')
+  ==
+::
+++  percent-byte
+  |=  c=@
+  ^-  tape
+  :~  '%'
+      (hex-char (div c 16))
+      (hex-char (mod c 16))
+  ==
+::
+++  hex-char
+  |=  n=@ud
+  ^-  @tD
+  ?:  (lth n 10)
+    `@tD`(add '0' n)
+  `@tD`(add 'A' (sub n 10))
 ::
 ++  get-optional-string
   |=  [jon=json key=@t]
