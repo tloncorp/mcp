@@ -1,6 +1,7 @@
 /-  mcp
 /+  dbug, verb, server, default-agent, pf=pretty-file,
-    jut=json-utils, *rpc, beam-uri=uri-beam, scry-uri=uri-scry
+    jut=json-utils, *rpc, beam-uri=uri-beam, fine-uri=uri-fine,
+    scry-uri=uri-scry
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
@@ -61,6 +62,56 @@
   ?:  =("https://" (scag 8 origin-tape))
     (loopback-authority (slag 8 origin-tape))
   %.n
+::
+++  page-to-mime
+  |=  [our=@p desk=@tas now=@da =page]
+  ^-  mime
+  ?:  =(%mime p.page)
+    ;;(mime q.page)
+  =/  =dais:clay
+    .^(dais:clay %cb /(scot %p our)/[desk]/(scot %da now)/[p.page])
+  =/  vax=vase  (vale:dais q.page)
+  =/  =tube:clay
+    .^(tube:clay %cc /(scot %p our)/[desk]/(scot %da now)/[p.page]/mime)
+  !<(mime (tube vax))
+::
+++  fine-result
+  |=  [our=@p desk=@tas now=@da rpc-id=@ta uri=@t =page]
+  ^-  json
+  =/  mime-result
+    %-  mule
+    |.
+    (page-to-mime our desk now page)
+  ?-  -.mime-result
+  ::
+      %|
+    %-  internal:error:rpc
+    :+  rpc-id
+        (crip "Could not convert fine resource mark %{<p.page>} to %mime; ensure this desk has /mar/%{<p.page>}/hoon with +mime:grow arm")
+    %-  some
+    %-  pairs:enjs:format
+    :~  ['uri' s+uri]
+        ['mark' s+(crip (trip p.page))]
+    ==
+  ::
+      %&
+  =/  =mime  p.mime-result
+  %-  result:rpc
+  :-  rpc-id
+  %-  pairs:enjs:format
+  :~  :-  'contents'
+      :-  %a
+      :~  %-  pairs:enjs:format
+          :~  ['uri' s+uri]
+              ['mimeType' s+(rsh 3^1 (spat p.mime))]
+              :-  'blob'
+              :-  %s
+              %-  en:base64:mimes:html
+              q.mime
+          ==
+      ==
+  ==
+  ==
 ::
 ++  simple-response
   |=  [eyre-id=@ta status=@ud headers=(list [key=@t value=@t])]
@@ -999,6 +1050,21 @@
                 ==  ==
               ==
             ==
+          ::
+              %'fine'
+            ::  Try the public namespace first.  A null result is retried as
+            ::  a two-party encrypted %chum request in +on-arvo.
+            =/  parsed-fine=(unit spar:ames)
+              (parse:fine-uri u.uri)
+            ?~  parsed-fine
+              :_  this
+              (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid fine URI {<u.uri>}") ~))
+            :_  this
+            :~  :*  %pass
+                    /response/resource/fine/keen/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    %arvo  %a  %keen  ~
+                    u.parsed-fine
+            ==  ==
           ==
         ::
             [~ [%s %'prompts/get']]
@@ -1480,6 +1546,36 @@
                 ==
             ==
         ==
+      ==
+    ==
+  ::
+      [%response %resource %fine task=?(%chum %keen) eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+    ::
+        [%ames %sage *]
+      =/  =sage:mess:ames  sage.sign-arvo
+      ?.  ?=(~ q.sage)
+        :_  this
+        (send-event eyre-id.pole (fine-result our.bowl q.byk.bowl now.bowl rpc-id.pole uri.pole q.sage))
+      ?-    task.pole
+          %chum
+        :_  this
+        %+  send-event
+          eyre-id.pole
+        %:  internal:error:rpc
+            rpc-id.pole
+            'Remote scry failed'
+            `(frond:enjs:format %path s+(spat path.p.sage))
+        ==
+      ::
+          %keen
+        :_  this
+        :~  :*  %pass
+                /response/resource/fine/chum/[eyre-id.pole]/[rpc-id.pole]/[uri.pole]
+                %arvo  %a  %chum
+                p.sage
+        ==  ==
       ==
     ==
   ==
