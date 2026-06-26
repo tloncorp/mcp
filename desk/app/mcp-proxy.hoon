@@ -2300,6 +2300,7 @@
   =/  query-parts=(list @t)
     %+  murn  params
     |=  param=json
+    ^-  (unit @t)
     ?~  param  ~
     ?.  ?=(%o -.param)  ~
     =/  pin=@t  (get-json-string param 'in')
@@ -2309,9 +2310,11 @@
     ?~  val  ~
     =/  v=@t  (json-query-value u.val)
     ?:  =('' v)  ~
-    %+  rap  3
-    :~  (percent-encode pname)  '='  (percent-encode v)
-    ==
+    =/  part=@t
+      %+  rap  3
+      :~  (percent-encode pname)  '='  (percent-encode v)
+      ==
+    `part
   ?~  query-parts  ''
   =/  result=@t  i.query-parts
   =/  rest=(list @t)  t.query-parts
@@ -2408,9 +2411,11 @@
     ?~  val  ~
     =/  v=@t  (json-query-value val)
     ?:  =('' v)  ~
-    %+  rap  3
-    :~  (percent-encode key)  '='  (percent-encode v)
-    ==
+    =/  part=@t
+      %+  rap  3
+      :~  (percent-encode key)  '='  (percent-encode v)
+      ==
+    `part
   ?~  parts  ''
   =/  result=@t  i.parts
   =/  rest=(list @t)  t.parts
