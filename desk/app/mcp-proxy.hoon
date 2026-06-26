@@ -61,6 +61,7 @@
 ++  on-init
   ^-  (quip card _this)
   =/  initial-key=@t  (gen-token eny.bowl)
+  =.  code-mode  %.y
   =.  client-key  `initial-key
   =/  sid=@tas  (self-id our.bowl)
   =/  self-url=@t  (build-self-url our.bowl now.bowl)
@@ -77,8 +78,9 @@
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
         (sync-server-key-card our.bowl initial-key)
-        [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]
     ==
+  =?  base  !(~(has by wex.bowl) /oauth/grants [our.bowl %oauth])
+    :_(base [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants])
   =/  prime-cards=(list card)
     (prime-proxy-cards servers server-order cookies our.bowl now.bowl)
   :_  this
@@ -95,8 +97,9 @@
   =/  eyre-cards=(list card)
     :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
         [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
-        [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]
     ==
+  =?  eyre-cards  !(~(has by wex.bowl) /oauth/grants [our.bowl %oauth])
+    :_(eyre-cards [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants])
   =/  raw-state=state-5:mcp-proxy
     ?-  -.p.old
         %5  p.old
@@ -150,7 +153,7 @@
       order-no-legacy
     [sid order-no-legacy]
   =/  new-state=state-5:mcp-proxy
-    raw-state(client-key `ensured-key, servers patched-servers, server-order patched-order)
+    raw-state(client-key `ensured-key, servers patched-servers, server-order patched-order, code-mode %.y)
   ::  re-fetch specs for openapi servers (cache is non-persisted)
   =/  spec-cards=(list card)
     %+  murn  ~(tap by servers.new-state)
@@ -276,7 +279,7 @@
       `this
     ::
         %set-code-mode
-      =.  code-mode  on.act
+      =.  code-mode  %.y
       `this
     ==
   ::
@@ -378,7 +381,7 @@
           ?~  client-key  ~
           s+u.client-key
           ['hasKey' b+?=(^ client-key)]
-          ['codeMode' b+code-mode]
+          ['codeMode' b+%.y]
       ==
     ::
         [%tools @ ~]
@@ -549,27 +552,25 @@
       ::  initial handshake fans prompts/list and resources/list out
       ::  to every upstream and blocks until they all respond, which
       ::  is what makes /apps/mcp/mcp appear stuck on connect.
-      ?:  code-mode
-        =/  result-key=@t
-          ?:  =(%'tools/list' method)      'tools'
-          ?:  =(%'resources/list' method)  'resources'
-          'prompts'
-        =/  items=(list json)
-          ?:  =(%'tools/list' method)  meta-tools
-          ~
-        =/  resp=json
-          %-  pairs:enjs:format
-          :~  ['jsonrpc' s+'2.0']  ['id' req-id]
-              :-  'result'
-              (pairs:enjs:format ~[[result-key a+items]])
-          ==
-        :_  this
-        (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
-      (fan-out eyre-id req-id method)
+      =/  result-key=@t
+        ?:  =(%'tools/list' method)      'tools'
+        ?:  =(%'resources/list' method)  'resources'
+        'prompts'
+      =/  items=(list json)
+        ?:  =(%'tools/list' method)  meta-tools
+        ~
+      =/  resp=json
+        %-  pairs:enjs:format
+        :~  ['jsonrpc' s+'2.0']  ['id' req-id]
+            :-  'result'
+            (pairs:enjs:format ~[[result-key a+items]])
+        ==
+      :_  this
+      (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
     ::
         ?(%'tools/call' %'resources/read' %'prompts/get')
       ::  code-mode: intercept the meta-tool calls before normal routing
-      ?:  &(=(%'tools/call' method) code-mode)
+      ?:  =(%'tools/call' method)
         =/  params=json  (get-json-field u.jon 'params')
         =/  tool-name-called=@t  (get-json-string params 'name')
         ?:  =('list_upstreams' tool-name-called)
@@ -1703,6 +1704,8 @@
       `this
     ::
         %kick
+      ?:  (~(has by wex.bowl) /oauth/grants [our.bowl %oauth])
+        `this
       :_  this
       ~[[%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants]]
     ::
