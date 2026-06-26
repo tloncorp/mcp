@@ -2176,7 +2176,7 @@
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
-          ['inputSchema' (operation-input-schema path-item op)]
+          ['inputSchema' (operation-input-schema spec path path-item op)]
       ==
     [tool $(ml t.ml)]
   $(items t.items, result (weld path-tools result))
@@ -2432,7 +2432,7 @@
   u.body
 ::
 ++  operation-input-schema
-  |=  [path-item=json op=json]
+  |=  [spec=json path-template=@t path-item=json op=json]
   ^-  json
   =/  params=(list json)
     %+  weld
@@ -2441,16 +2441,34 @@
   =/  props=(map @t json)
     %-  ~(gas by *(map @t json))
     %+  murn  params
-    parameter-property
+    |=  param=json
+    (parameter-property spec param)
   =/  reqs=(list json)
     %+  murn  params
-    parameter-required
+    |=  param=json
+    (parameter-required spec param)
+  =/  fallback-paths=(list @t)
+    %+  skim  ~(tap in (extract-path-params path-template))
+    |=  pname=@t
+    !(~(has by props) pname)
+  =?  props  ?=(^ fallback-paths)
+    %-  ~(gas by props)
+    %+  turn  fallback-paths
+    |=  pname=@t
+    ^-  [@t json]
+    [pname (simple-schema-property 'string' 'Path parameter.')]
+  =?  reqs  ?=(^ fallback-paths)
+    %+  weld  reqs
+    %+  turn  fallback-paths
+    |=  pname=@t
+    ^-  json
+    s+pname
   =/  body-prop=(unit [name=@t prop=json])
-    (request-body-property op)
+    (request-body-property spec op)
   =?  props  ?=(^ body-prop)
     =/  [body-name=@t body-json=json]  u.body-prop
     (~(put by props) body-name body-json)
-  =?  reqs  ?&(?=(^ body-prop) (request-body-required op))
+  =?  reqs  ?&(?=(^ body-prop) (request-body-required spec op))
     (snoc reqs s+'body')
   %-  pairs:enjs:format
   :~  ['type' s+'object']
@@ -2466,9 +2484,80 @@
   ?.  ?=(%a -.val)  ~
   p.val
 ::
+++  resolve-openapi-ref
+  |=  [spec=json jon=json]
+  ^-  json
+  (resolve-openapi-ref-depth spec jon 8)
+::
+++  resolve-openapi-ref-depth
+  |=  [spec=json jon=json depth=@ud]
+  ^-  json
+  ?:  =(0 depth)  jon
+  ?~  jon  ~
+  ?.  ?=(%o -.jon)  jon
+  =/  ref=@t  (get-json-string jon '$ref')
+  ?:  =('' ref)  jon
+  =/  target=(unit json)  (json-pointer-get spec ref)
+  ?~  target  jon
+  (resolve-openapi-ref-depth spec u.target (sub depth 1))
+::
+++  json-pointer-get
+  |=  [jon=json ref=@t]
+  ^-  (unit json)
+  =/  chars=tape  (trip ref)
+  ?~  chars  ~
+  ?.  =('#' i.chars)  ~
+  =/  rest=tape  t.chars
+  ?~  rest  ~
+  ?.  =('/' i.rest)  ~
+  (json-pointer-walk jon (split-json-pointer t.rest))
+::
+++  json-pointer-walk
+  |=  [jon=json parts=(list @t)]
+  ^-  (unit json)
+  ?~  parts  `jon
+  ?~  jon  ~
+  ?.  ?=(%o -.jon)  ~
+  =/  next=(unit json)  (~(get by p.jon) i.parts)
+  ?~  next  ~
+  $(jon u.next, parts t.parts)
+::
+++  split-json-pointer
+  |=  chars=tape
+  ^-  (list @t)
+  =/  res=(list @t)  ~
+  =/  seg=tape  ~
+  |-
+  ?~  chars
+    (flop [(json-pointer-unescape (crip seg)) res])
+  ?:  =('/' i.chars)
+    $(chars `tape`t.chars, res [(json-pointer-unescape (crip seg)) res], seg ~)
+  $(chars `tape`t.chars, seg (snoc seg i.chars))
+::
+++  json-pointer-unescape
+  |=  raw=@t
+  ^-  @t
+  =/  chars=tape  (trip raw)
+  =/  out=tape  ~
+  |-
+  ?~  chars
+    (crip out)
+  =/  c=@tD  i.chars
+  ?.  =(c '~')
+    $(chars t.chars, out (snoc out c))
+  ?~  t.chars
+    $(chars t.chars, out (snoc out c))
+  =/  n=@tD  i.t.chars
+  ?:  =(n '1')
+    $(chars t.t.chars, out (snoc out '/'))
+  ?:  =(n '0')
+    $(chars t.t.chars, out (snoc out '~'))
+  $(chars t.chars, out (snoc out c))
+::
 ++  parameter-property
-  |=  param=json
+  |=  [spec=json param=json]
   ^-  (unit [@t json])
+  =/  param=json  (resolve-openapi-ref spec param)
   ?~  param  ~
   ?.  ?=(%o -.param)  ~
   =/  pin=@t  (get-json-string param 'in')
@@ -2483,12 +2572,13 @@
       (simple-schema-property ?:(=('' typ) 'string' typ) desc)
     ?.  ?=(%o -.schema)
       (simple-schema-property ?:(=('' typ) 'string' typ) desc)
-    (schema-with-description schema desc)
+    (schema-with-description spec schema desc)
   `[pname prop]
 ::
 ++  parameter-required
-  |=  param=json
+  |=  [spec=json param=json]
   ^-  (unit json)
+  =/  param=json  (resolve-openapi-ref spec param)
   ?~  param  ~
   ?.  ?=(%o -.param)  ~
   =/  pin=@t  (get-json-string param 'in')
@@ -2503,25 +2593,25 @@
   `s+pname
 ::
 ++  request-body-property
-  |=  op=json
+  |=  [spec=json op=json]
   ^-  (unit [name=@t prop=json])
-  =/  body=json  (get-json-field op 'requestBody')
+  =/  body=json  (resolve-openapi-ref spec (get-json-field op 'requestBody'))
   ?~  body  ~
   ?.  ?=(%o -.body)  ~
   =/  desc=@t  (get-json-string body 'description')
-  =/  schema=json  (request-body-schema body)
+  =/  schema=json  (request-body-schema spec body)
   =/  prop=json
     ?~  schema
       (simple-schema-property 'object' desc)
     ?.  ?=(%o -.schema)
       (simple-schema-property 'object' desc)
-    (schema-with-description schema desc)
+    (schema-with-description spec schema desc)
   `['body' prop]
 ::
 ++  request-body-required
-  |=  op=json
+  |=  [spec=json op=json]
   ^-  ?
-  =/  body=json  (get-json-field op 'requestBody')
+  =/  body=json  (resolve-openapi-ref spec (get-json-field op 'requestBody'))
   ?~  body  %.n
   ?.  ?=(%o -.body)  %.n
   =/  req=json  (get-json-field body 'required')
@@ -2530,7 +2620,7 @@
   p.req
 ::
 ++  request-body-schema
-  |=  body=json
+  |=  [spec=json body=json]
   ^-  json
   ?~  body  ~
   ?.  ?=(%o -.body)  ~
@@ -2539,11 +2629,12 @@
   ?.  ?=(%o -.content)  ~
   =/  media=(unit json)  (~(get by p.content) 'application/json')
   ?~  media  ~
-  (get-json-field u.media 'schema')
+  (resolve-openapi-ref spec (get-json-field u.media 'schema'))
 ::
 ++  schema-with-description
-  |=  [schema=json desc=@t]
+  |=  [spec=json schema=json desc=@t]
   ^-  json
+  =/  schema=json  (resolve-openapi-ref spec schema)
   ?~  schema  ~
   ?.  ?=(%o -.schema)  schema
   =/  prop=(map @t json)  p.schema
