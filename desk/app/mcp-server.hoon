@@ -1318,8 +1318,10 @@
               :-  'result'
               ?-    response
                   [%result %structured *]
-                %-  frond:enjs:format
-                ['structuredContent' json.response]
+                %-  pairs:enjs:format
+                :~  ['structuredContent' json.response]
+                    ['isError' b+.n]
+                ==
               ::
                   [%result %unstructured *]
                 %-  frond:enjs:format
@@ -1373,7 +1375,6 @@
                   ==
                 ==
               ==
-              ['isError' b+.n]
           ==
         ==
       ==
