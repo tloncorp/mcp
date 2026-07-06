@@ -1052,8 +1052,10 @@
             ==
           ::
               %'fine'
-            ::  Try the public namespace first.  A null result is retried as
-            ::  a two-party encrypted %chum request in +on-arvo.
+            ::  Try the public namespace first.  +parse:fine-uri normalizes
+            ::  fine://.../g/x/revision/agent//1/path to the spar Ames expects.
+            ::  A null result is retried as a two-party encrypted %chum
+            ::  request in +on-arvo.
             =/  parsed-fine=(unit spar:ames)
               (parse:fine-uri u.uri)
             ?~  parsed-fine
