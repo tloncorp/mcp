@@ -64,7 +64,7 @@ const dependencies = [_]RepoImport{
     },
 };
 
-const dependency_cache_dir = ".zig-cache/desk-deps";
+const dependency_cache_dir = "desk-deps";
 const minimum_git_version = GitVersion{ .major = 2, .minor = 25, .patch = 0 };
 
 const GitVersion = struct {
@@ -107,7 +107,7 @@ const DeskStep = struct {
         switch (self.action) {
             .build => try buildDesk(step, allocator, self.copy_target),
             .clean => try clean(),
-            .clear => try clear(),
+            .clear => try clear(step),
         }
     }
 };
@@ -161,9 +161,9 @@ fn clean() !void {
     try deleteTreeIfExists("dist");
 }
 
-fn clear() !void {
+fn clear(step: *std.Build.Step) !void {
     try clean();
-    try deleteTreeIfExists(dependency_cache_dir);
+    try deleteTreeIfExists(try dependencyCacheRootPath(step));
 }
 
 fn importDependency(
@@ -172,39 +172,104 @@ fn importDependency(
     dep: RepoImport,
     dist_path: []const u8,
 ) !void {
-    const repo_path = try std.fs.path.join(allocator, &.{ dependency_cache_dir, dep.name });
-
-    try ensureRepoImport(step, repo_path, dep);
+    const repo_path = try repoCachePath(step, dep);
 
     for (dep.paths) |path| {
         const import_path = try prefixedPath(allocator, dep.prefix, path);
         const rel = strippedPath(dep.prefix, path);
-        const source_path = try std.fs.path.join(allocator, &.{ repo_path, import_path });
+        const source_path = try ensureFileImport(step, dep, repo_path, import_path);
         const dest_path = try std.fs.path.join(allocator, &.{ dist_path, rel });
         try copyFilePath(source_path, dest_path);
     }
 }
 
-fn ensureRepoImport(step: *std.Build.Step, repo_path: []const u8, dep: RepoImport) !void {
+fn ensureFileImport(
+    step: *std.Build.Step,
+    dep: RepoImport,
+    repo_path: []const u8,
+    import_path: []const u8,
+) ![]const u8 {
+    const allocator = step.owner.allocator;
+    const cache_path = try fileImportCachePath(step, dep, import_path);
+    if (pathExists(cache_path)) return cache_path;
+
+    try ensureRepoImport(step, repo_path, dep.name, dep.url, dep.commit, &.{import_path});
+
+    const repo_file_path = try std.fs.path.join(allocator, &.{ repo_path, import_path });
+    try copyFilePath(repo_file_path, cache_path);
+    return cache_path;
+}
+
+fn ensureRepoImport(
+    step: *std.Build.Step,
+    repo_path: []const u8,
+    name: []const u8,
+    url: []const u8,
+    commit: []const u8,
+    paths: []const []const u8,
+) !void {
     const git_dir = try std.fs.path.join(step.owner.allocator, &.{ repo_path, ".git" });
     if (!pathExists(git_dir)) {
         if (std.fs.path.dirname(repo_path)) |parent| {
             try std.fs.cwd().makePath(parent);
         }
         try std.fs.cwd().makePath(repo_path);
-        std.debug.print("Importing {s}...\n", .{dep.name});
+        std.debug.print("Importing {s}...\n", .{name});
         try run(step, &.{ "git", "-C", repo_path, "init" });
-        try run(step, &.{ "git", "-C", repo_path, "remote", "add", "origin", dep.url });
+        try run(step, &.{ "git", "-C", repo_path, "remote", "add", "origin", url });
         try run(step, &.{ "git", "-C", repo_path, "sparse-checkout", "init", "--no-cone" });
     }
 
-    try setSparseCheckout(step, dep, repo_path);
+    try setSparseCheckout(step, repo_path, paths);
 
-    if (!gitHasCommit(step, repo_path, dep.commit)) {
-        try run(step, &.{ "git", "-C", repo_path, "fetch", "--depth", "1", "--filter=blob:none", "origin", dep.commit });
+    if (!gitHasCommit(step, repo_path, commit)) {
+        try run(step, &.{ "git", "-C", repo_path, "fetch", "--depth", "1", "--filter=blob:none", "origin", commit });
     }
 
-    try run(step, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", dep.commit });
+    try run(step, &.{ "git", "-C", repo_path, "checkout", "--detach", "--force", commit });
+}
+
+fn dependencyCacheRootPath(step: *std.Build.Step) ![]const u8 {
+    return step.owner.graph.global_cache_root.join(step.owner.allocator, &.{dependency_cache_dir});
+}
+
+fn repoCachePath(step: *std.Build.Step, dep: RepoImport) ![]const u8 {
+    const key = try repoCacheKey(step.owner.allocator, dep);
+    return step.owner.graph.global_cache_root.join(step.owner.allocator, &.{ dependency_cache_dir, "repos", key });
+}
+
+fn fileImportCachePath(step: *std.Build.Step, dep: RepoImport, import_path: []const u8) ![]const u8 {
+    const key = try fileImportCacheKey(step.owner.allocator, dep, import_path);
+    return step.owner.graph.global_cache_root.join(step.owner.allocator, &.{ dependency_cache_dir, "files", key });
+}
+
+fn repoCacheKey(allocator: std.mem.Allocator, dep: RepoImport) ![]const u8 {
+    var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    hashBytes(&hasher, dep.url);
+    hashBytes(&hasher, dep.commit);
+    return finishCacheKey(allocator, &hasher);
+}
+
+fn fileImportCacheKey(allocator: std.mem.Allocator, dep: RepoImport, import_path: []const u8) ![]const u8 {
+    var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    hashBytes(&hasher, dep.url);
+    hashBytes(&hasher, dep.commit);
+    hashBytes(&hasher, import_path);
+    return finishCacheKey(allocator, &hasher);
+}
+
+fn finishCacheKey(allocator: std.mem.Allocator, hasher: *std.crypto.hash.sha2.Sha256) ![]const u8 {
+    var digest: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
+    hasher.final(&digest);
+
+    const hex = std.fmt.bytesToHex(digest, .lower);
+    return allocator.dupe(u8, &hex);
+}
+
+fn hashBytes(hasher: *std.crypto.hash.sha2.Sha256, bytes: []const u8) void {
+    const len = bytes.len;
+    hasher.update(std.mem.asBytes(&len));
+    hasher.update(bytes);
 }
 
 fn requireGitVersion(step: *std.Build.Step) !void {
@@ -270,7 +335,7 @@ fn parseGitVersion(output: []const u8) ?GitVersion {
     };
 }
 
-fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const u8) !void {
+fn setSparseCheckout(step: *std.Build.Step, repo_path: []const u8, paths: []const []const u8) !void {
     var argv = std.ArrayList([]const u8){};
     try argv.append(step.owner.allocator, "git");
     try argv.append(step.owner.allocator, "-C");
@@ -278,8 +343,8 @@ fn setSparseCheckout(step: *std.Build.Step, dep: RepoImport, repo_path: []const 
     try argv.append(step.owner.allocator, "sparse-checkout");
     try argv.append(step.owner.allocator, "set");
     try argv.append(step.owner.allocator, "--no-cone");
-    for (dep.paths) |path| {
-        try argv.append(step.owner.allocator, try prefixedPath(step.owner.allocator, dep.prefix, path));
+    for (paths) |path| {
+        try argv.append(step.owner.allocator, path);
     }
     try run(step, argv.items);
 }
