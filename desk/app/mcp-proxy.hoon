@@ -131,8 +131,13 @@
   =/  prev=(unit mcp-server:mcp-proxy)  ?~(current legacy current)
   =/  url=@t
     ?~  prev  (build-self-url our.bowl now.bowl)
-    ::  if previously stored URL was the old hardcoded port, refresh it
-    ?:  =('http://localhost:8080/mcp' url.u.prev)
+    ::  refresh stale derivations: the old hardcoded port, or a
+    ::  boot-time eyre ports scry that ran before eyre bound a real
+    ::  port and produced a portless or port-0 loopback
+    ?:  ?|  =('http://localhost:8080/mcp' url.u.prev)
+            =('http://localhost/mcp' url.u.prev)
+            =('http://localhost:0/mcp' url.u.prev)
+        ==
       (build-self-url our.bowl now.bowl)
     url.u.prev
   =/  auth-header=header:mcp-proxy  ['x-api-key' ensured-key]
@@ -174,8 +179,18 @@
   =/  prime-cards=(list card)
     %+  prime-proxy-cards  servers.new-state
     [server-order.new-state cookies our.bowl now.bowl]
+  ::  those primes can't attach OAuth headers (scrying %oauth during
+  ::  desk revival can suspend the desk), so oauth-linked upstreams
+  ::  401 and stay out of the code-mode cache. re-prime them with
+  ::  tokens once the desk is fully live.
+  =/  oauth-prime-cards=(list card)
+    %+  murn  ~(tap by servers.new-state)
+    |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
+    ^-  (unit card)
+    ?~  oauth-provider.srv  ~
+    `[%pass /prime-oauth/[sid] %arvo %b %wait (add now.bowl ~s10)]
   :_  this(state new-state)
-  :(weld eyre-cards sync-cards spec-cards prime-cards)
+  :(weld eyre-cards sync-cards spec-cards prime-cards oauth-prime-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -1277,6 +1292,22 @@
         [%give %fact ~[path] %http-response-data !>(body)]
         [%give %kick ~[path] ~]
     ==
+  ::
+  ::  prime-oauth: deferred post-load prime for one oauth-linked
+  ::  proxy upstream, with the bearer token attached (safe to scry
+  ::  %oauth now that the desk is fully live). fire-and-forget like
+  ::  the boot prime; the response lands on /iris/init as usual.
+  ::
+      [%prime-oauth @ ~]
+    ?.  ?=([%behn %wake *] sign)  `this
+    =/  sid=server-id:mcp-proxy  `@tas`i.t.wire
+    =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
+    ?~  srv  `this
+    =/  c=(unit card)
+      %-  prime-one-proxy-card
+      [sid u.srv (~(get by cookies) sid) our.bowl now.bowl]
+    ?~  c  `this
+    :_  this  ~[u.c]
   ::
       [%iris %init @ ~]
     ::  MCP initialize response. Capture the assigned Mcp-Session-Id
