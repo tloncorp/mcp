@@ -2953,10 +2953,10 @@
     t
   =/  is-sse=?
     ?~  lead  %.n
-    ?|  =("data:" (scag 5 lead))
-        =("event:" (scag 6 lead))
-        =("id:" (scag 3 lead))
-        =("retry:" (scag 6 lead))
+    ?|  =('data:' (crip (scag 5 lead)))
+        =('event:' (crip (scag 6 lead)))
+        =('id:' (crip (scag 3 lead)))
+        =('retry:' (crip (scag 6 lead)))
         =(':' i.lead)
     ==
   ?.  is-sse  body
