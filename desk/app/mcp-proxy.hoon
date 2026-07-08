@@ -2942,6 +2942,24 @@
   ^-  @t
   =/  t=tape  (trip body)
   =/  len=@ud  (lent t)
+  ::  only unwrap when the body actually is an SSE stream: after any
+  ::  leading whitespace it must begin with an SSE field or comment
+  ::  line. plain JSON bodies can contain "data: " inside string
+  ::  content (posthog tool descriptions do) and must not be sliced.
+  =/  lead=tape
+    |-  ^-  tape
+    ?~  t  ~
+    ?:  ?|(=(10 i.t) =(13 i.t) =(32 i.t))  $(t t.t)
+    t
+  =/  is-sse=?
+    ?~  lead  %.n
+    ?|  =("data:" (scag 5 lead))
+        =("event:" (scag 6 lead))
+        =("id:" (scag 3 lead))
+        =("retry:" (scag 6 lead))
+        =(':' i.lead)
+    ==
+  ?.  is-sse  body
   ::  find "data: " (with space)
   =/  idx=(unit @ud)  (find "data: " t)
   =/  data-start=(unit @ud)
