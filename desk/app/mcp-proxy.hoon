@@ -131,8 +131,13 @@
   =/  prev=(unit mcp-server:mcp-proxy)  ?~(current legacy current)
   =/  url=@t
     ?~  prev  (build-self-url our.bowl now.bowl)
-    ::  if previously stored URL was the old hardcoded port, refresh it
-    ?:  =('http://localhost:8080/mcp' url.u.prev)
+    ::  refresh stale derivations: the old hardcoded port, or a
+    ::  boot-time eyre ports scry that ran before eyre bound a real
+    ::  port and produced a portless or port-0 loopback
+    ?:  ?|  =('http://localhost:8080/mcp' url.u.prev)
+            =('http://localhost/mcp' url.u.prev)
+            =('http://localhost:0/mcp' url.u.prev)
+        ==
       (build-self-url our.bowl now.bowl)
     url.u.prev
   =/  auth-header=header:mcp-proxy  ['x-api-key' ensured-key]
@@ -174,8 +179,18 @@
   =/  prime-cards=(list card)
     %+  prime-proxy-cards  servers.new-state
     [server-order.new-state cookies our.bowl now.bowl]
+  ::  those primes can't attach OAuth headers (scrying %oauth during
+  ::  desk revival can suspend the desk), so oauth-linked upstreams
+  ::  401 and stay out of the code-mode cache. re-prime them with
+  ::  tokens once the desk is fully live.
+  =/  oauth-prime-cards=(list card)
+    %+  murn  ~(tap by servers.new-state)
+    |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
+    ^-  (unit card)
+    ?~  oauth-provider.srv  ~
+    `[%pass /prime-oauth/[sid] %arvo %b %wait (add now.bowl ~s10)]
   :_  this(state new-state)
-  :(weld eyre-cards sync-cards spec-cards prime-cards)
+  :(weld eyre-cards sync-cards spec-cards prime-cards oauth-prime-cards)
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -1278,11 +1293,28 @@
         [%give %kick ~[path] ~]
     ==
   ::
-      [%iris %init @ ~]
+  ::  prime-oauth: deferred post-load prime for one oauth-linked
+  ::  proxy upstream, with the bearer token attached (safe to scry
+  ::  %oauth now that the desk is fully live). fire-and-forget like
+  ::  the boot prime; the response lands on /iris/init as usual.
+  ::
+      [%prime-oauth @ ~]
+    ?.  ?=([%behn %wake *] sign)  `this
+    =/  sid=server-id:mcp-proxy  `@tas`i.t.wire
+    =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
+    ?~  srv  `this
+    =/  c=(unit card)
+      %-  prime-one-proxy-card
+      [sid u.srv (~(get by cookies) sid) our.bowl now.bowl]
+    ?~  c  `this
+    :_  this  ~[u.c]
+  ::
+      [%iris %init @ *]
     ::  MCP initialize response. Capture the assigned Mcp-Session-Id
     ::  (if any), fire-and-forget the notifications/initialized post,
     ::  then schedule the actual tools/list which lands on the
-    ::  /iris/prime/<sid> handler below.
+    ::  /iris/prime/<sid> handler below. the wire may carry a
+    ::  trailing nonce (re-primes add one to dodge duct collisions).
     ::
     =/  sid=server-id:mcp-proxy  i.t.t.wire
     =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
@@ -1307,13 +1339,14 @@
     =/  oauth-hdr=(unit [key=@t value=@t])
       (get-oauth-header oauth-provider.u.srv our.bowl now.bowl)
     =/  cookie=(unit @t)  (~(get by cookies) sid)
+    =/  nonce=@ta  (scot %uv eny.bowl)
     =/  initialized-card=card:agent:gall
-      %+  build-mcp-iris-card  /iris/initialized/[sid]
+      %+  build-mcp-iris-card  /iris/initialized/[sid]/[nonce]
       :*  url.u.srv  headers.u.srv  cookie  session  oauth-hdr
           build-initialized-body
       ==
     =/  prime-card=card:agent:gall
-      %+  build-mcp-iris-card  /iris/prime/[sid]
+      %+  build-mcp-iris-card  /iris/prime/[sid]/[nonce]
       :*  url.u.srv  headers.u.srv  cookie  session  oauth-hdr
           build-tools-list-body
       ==
@@ -1324,10 +1357,10 @@
   ::  reply 202 Accepted or 200 with empty body; either way nothing
   ::  to do.
   ::
-      [%iris %initialized @ ~]
+      [%iris %initialized @ *]
     `this
   ::
-      [%iris %prime @ ~]
+      [%iris %prime @ *]
     ::  proxy upstream tools/list prime response — mirrors the
     ::  spec-fetch path but stores into proxy-tools-cache instead
     ::  of spec-cache. fire-and-forget; no client is waiting on
@@ -2749,7 +2782,7 @@
           now=@da
       ==
   ^-  (list card:agent:gall)
-  ::  Two-stage handshake: initialize first; the [%iris %init @ ~]
+  ::  Two-stage handshake: initialize first; the [%iris %init @ *]
   ::  arvo handler captures the assigned Mcp-Session-Id and queues
   ::  the actual tools/list. Servers that don't enforce sessions
   ::  (e.g. Linear) are unaffected — they just don't return the
@@ -2764,16 +2797,18 @@
   ?~  srv  ~
   ?.  enabled.u.srv  ~
   ?.  =(%proxy mode.u.srv)  ~
+  ::  oauth-linked upstreams are skipped here: we cannot scry %oauth
+  ::  while Gall is reviving this desk (a failed cross-agent peek
+  ::  suspends the whole desk), and priming them without the token
+  ::  just 401s. the deferred /prime-oauth timers set alongside these
+  ::  cards re-prime them with the token once the desk is live.
+  ?^  oauth-provider.u.srv  ~
   %-  some
   %+  build-mcp-iris-card  /iris/init/[sid]
   :*  url.u.srv
       headers.u.srv
       (~(get by cookies) sid)
       ~
-      ::  Do not scry %oauth while Gall is reviving this desk. During
-      ::  install/unsuspend, %oauth may not be live yet, and a failed
-      ::  cross-agent peek suspends the whole desk. Runtime calls and
-      ::  action-driven priming still attach OAuth headers.
       ~
       init-body
   ==
@@ -2781,7 +2816,7 @@
 ::  build a single iris card that POSTs initialize to one upstream
 ::  (used by add-server / refresh-spec to prime just the affected
 ::  upstream rather than every one). The actual tools/list fires
-::  from the [%iris %init @ ~] handler once the session is known.
+::  from the [%iris %init @ *] handler once the session is known.
 ::
 ++  prime-one-proxy-card
   |=  $:  sid=server-id:mcp-proxy
@@ -2794,7 +2829,10 @@
   ?.  enabled.srv  ~
   ?.  =(%proxy mode.srv)  ~
   %-  some
-  %+  build-mcp-iris-card  /iris/init/[sid]
+  ::  nonce the wire: a boot prime or earlier re-prime may still be
+  ::  in flight on this upstream, and iris refuses a second request
+  ::  on an occupied duct (%cant-send-second-http-client-request)
+  %+  build-mcp-iris-card  /iris/init/[sid]/(scot %da now)
   :*  url.srv
       headers.srv
       cookie
@@ -2911,6 +2949,24 @@
   ^-  @t
   =/  t=tape  (trip body)
   =/  len=@ud  (lent t)
+  ::  only unwrap when the body actually is an SSE stream: after any
+  ::  leading whitespace it must begin with an SSE field or comment
+  ::  line. plain JSON bodies can contain "data: " inside string
+  ::  content (posthog tool descriptions do) and must not be sliced.
+  =/  lead=tape
+    |-  ^-  tape
+    ?~  t  ~
+    ?:  ?|(=(10 i.t) =(13 i.t) =(32 i.t))  $(t t.t)
+    t
+  =/  is-sse=?
+    ?~  lead  %.n
+    ?|  =('data:' (crip (scag 5 `tape`lead)))
+        =('event:' (crip (scag 6 `tape`lead)))
+        =('id:' (crip (scag 3 `tape`lead)))
+        =('retry:' (crip (scag 6 `tape`lead)))
+        =(':' i.lead)
+    ==
+  ?.  is-sse  body
   ::  find "data: " (with space)
   =/  idx=(unit @ud)  (find "data: " t)
   =/  data-start=(unit @ud)
