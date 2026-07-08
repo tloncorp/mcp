@@ -2,13 +2,13 @@
 
 ## Project Structure & Module Organization
 
-This repository implements an Urbit Model Context Protocol server. Production Hoon source lives under `desk/`: the Gall agent is `desk/app/mcp-server.hoon`, shared libraries are in `desk/lib/`, structures in `desk/sur/`, marks in `desk/mar/`, and install threads in `desk/ted/`. MCP tools, prompts, resources, and templates are organized under `desk/fil/mcp/`. CI workflows live in `.github/workflows/`. Treat generated `dist/` and `.zig-cache/` contents as build artifacts; edit `desk/` or `build.zig` instead.
+This repository implements an Urbit Model Context Protocol server. Production Hoon source lives under `desk/`: the Gall agent is `desk/app/mcp-server.hoon`, shared libraries are in `desk/lib/`, structures in `desk/sur/`, marks in `desk/mar/`, and install threads in `desk/ted/`. MCP tools, prompts, resources, and templates are organized under `desk/fil/mcp/`. CI workflows live in `.github/workflows/`. Treat generated `zig-out/` and `.zig-cache/` contents as build artifacts; edit `desk/` or `build.zig` instead.
 
 ## Build, Test, and Development Commands
 
-- `zig build` assembles `desk/` plus pinned upstream dependencies into `dist/`. Zig 0.15 or newer is required; CI currently uses 0.15.2.
+- `zig build` assembles `desk/` plus pinned upstream dependencies into the Zig install prefix (`zig-out/` by default). Zig 0.15 or newer is required; CI currently uses 0.15.2.
 - `zig build -Ddesk=~/path/to/ship/mcp` rebuilds and replaces a mounted ship desk for local integration testing.
-- `zig build clean` removes `dist/`.
+- `zig build clean` removes the Zig install prefix.
 - `zig build clear` also removes cached desk dependencies.
 - `zig test build.zig` runs the Zig build-helper unit tests.
 

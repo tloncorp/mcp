@@ -1,16 +1,16 @@
 const std = @import("std");
 
 const Action = enum {
-    build, // zig build       -> build /dist
-    clean, // zig build clean -> remove /dist
-    clear, // zig build clear -> remove /dist and cached imports
+    build, // zig build       -> build to install prefix
+    clean, // zig build clean -> remove install prefix
+    clear, // zig build clear -> remove install prefix and cached imports
 };
 
 const RepoImport = struct {
     name: []const u8, // any name
     url: []const u8, // git repo url
     commit: []const u8, // commit hash
-    prefix: []const u8, // repository prefix, omitted from /dist
+    prefix: []const u8, // repository prefix, omitted from install prefix
     paths: []const []const u8, // relative or prefix-qualified filepaths
 };
 
@@ -82,6 +82,7 @@ const GitVersion = struct {
 const DeskStep = struct {
     step: std.Build.Step,
     action: Action,
+    install_path: []const u8,
     copy_target: ?[]const u8,
 
     fn create(b: *std.Build, name: []const u8, action: Action, copy_target: ?[]const u8) *DeskStep {
@@ -94,6 +95,7 @@ const DeskStep = struct {
                 .makeFn = make,
             }),
             .action = action,
+            .install_path = b.install_path,
             .copy_target = copy_target,
         };
         return self;
@@ -105,8 +107,8 @@ const DeskStep = struct {
         const allocator = step.owner.allocator;
 
         switch (self.action) {
-            .build => try buildDesk(step, allocator, self.copy_target),
-            .clean => try clean(),
+            .build => try buildDesk(step, allocator, self.install_path, self.copy_target),
+            .clean => try clean(self.install_path),
             .clear => try clear(step),
         }
     }
@@ -125,56 +127,57 @@ pub fn build(b: *std.Build) void {
     ) orelse default_optimize;
     _ = optimize;
 
-    const desk = b.option([]const u8, "desk", "After building, replace the desk at this path with /dist contents");
+    const desk = b.option([]const u8, "desk", "After building, replace the desk at this path with install prefix contents");
 
     const build_step = DeskStep.create(b, "build desk", .build, desk);
     b.default_step.dependOn(&build_step.step);
 
-    const named_build = b.step("build", "Build /dist from /desk and dependencies");
+    const named_build = b.step("build", "Build install prefix from /desk and dependencies");
     named_build.dependOn(&build_step.step);
 
     const clean_step = DeskStep.create(b, "clean", .clean, null);
-    const named_clean = b.step("clean", "Remove /dist");
+    const named_clean = b.step("clean", "Remove install prefix");
     named_clean.dependOn(&clean_step.step);
 
     const clear_step = DeskStep.create(b, "clear", .clear, null);
-    const named_clear = b.step("clear", "Remove /dist and cached dependencies");
+    const named_clear = b.step("clear", "Remove install prefix and cached dependencies");
     named_clear.dependOn(&clear_step.step);
 }
 
-fn buildDesk(step: *std.Build.Step, allocator: std.mem.Allocator, copy_target: ?[]const u8) !void {
+fn buildDesk(step: *std.Build.Step, allocator: std.mem.Allocator, install_path: []const u8, copy_target: ?[]const u8) !void {
     try requireGitVersion(step);
 
     if (!pathExists("desk") and !pathExists("desk-dev")) {
         return step.fail("neither /desk nor /desk-dev directory found", .{});
     }
 
-    std.debug.print("Creating /dist directory...\n", .{});
-    try recreateDir("dist");
+    std.debug.print("Creating install prefix at {s}...\n", .{install_path});
+    try recreateDir(install_path);
 
     if (pathExists("desk")) {
-        std.debug.print("Copying /desk to /dist...\n", .{});
-        try copyDirContents(allocator, "desk", "dist");
+        std.debug.print("Copying /desk to install prefix...\n", .{});
+        try copyDirContents(allocator, "desk", install_path);
     }
 
     for (dependencies) |dep| {
-        try importDependency(step, allocator, dep, "dist");
+        try importDependency(step, allocator, dep, install_path);
     }
 
     std.debug.print("Built!\n", .{});
 
     if (copy_target) |target| {
         const target_path = try expandHomePath(allocator, step, target);
-        try copyDistToTarget(allocator, step, target_path);
+        try copyInstallPrefixToTarget(allocator, step, install_path, target_path);
     }
 }
 
-fn clean() !void {
-    try deleteTreeIfExists("dist");
+fn clean(install_path: []const u8) !void {
+    try deleteTreeIfExists(install_path);
 }
 
 fn clear(step: *std.Build.Step) !void {
-    try clean();
+    const self: *DeskStep = @fieldParentPtr("step", step);
+    try clean(self.install_path);
     try deleteTreeIfExists(try dependencyCacheRootPath(step));
 }
 
@@ -182,7 +185,7 @@ fn importDependency(
     step: *std.Build.Step,
     allocator: std.mem.Allocator,
     dep: RepoImport,
-    dist_path: []const u8,
+    install_path: []const u8,
 ) !void {
     const repo_path = try repoCachePath(step, dep);
 
@@ -190,7 +193,7 @@ fn importDependency(
         const import_path = try prefixedPath(allocator, dep.prefix, path);
         const rel = strippedPath(dep.prefix, path);
         const source_path = try ensureFileImport(step, dep, repo_path, import_path);
-        const dest_path = try std.fs.path.join(allocator, &.{ dist_path, rel });
+        const dest_path = try std.fs.path.join(allocator, &.{ install_path, rel });
         try copyFilePath(source_path, dest_path);
     }
 }
@@ -462,9 +465,9 @@ fn expandHomePath(allocator: std.mem.Allocator, step: *std.Build.Step, path: []c
     return path;
 }
 
-fn copyDistToTarget(allocator: std.mem.Allocator, step: *std.Build.Step, target_path: []const u8) !void {
-    if (!pathExists("dist")) {
-        return step.fail("dist directory not found. Run build first", .{});
+fn copyInstallPrefixToTarget(allocator: std.mem.Allocator, step: *std.Build.Step, install_path: []const u8, target_path: []const u8) !void {
+    if (!pathExists(install_path)) {
+        return step.fail("install prefix '{s}' not found. Run build first", .{install_path});
     }
     if (!pathExists(target_path)) {
         return step.fail("target path '{s}' does not exist", .{target_path});
@@ -473,8 +476,8 @@ fn copyDistToTarget(allocator: std.mem.Allocator, step: *std.Build.Step, target_
     std.debug.print("Clearing destination desk...\n", .{});
     try clearDirContents(allocator, target_path);
 
-    std.debug.print("Copying /dist to destination desk...\n", .{});
-    try copyDirContents(allocator, "dist", target_path);
+    std.debug.print("Copying install prefix to destination desk...\n", .{});
+    try copyDirContents(allocator, install_path, target_path);
 
     std.debug.print("Copied!\n", .{});
 }
