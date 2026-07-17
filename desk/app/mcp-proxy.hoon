@@ -1080,7 +1080,7 @@
       =/  nm=@t  (tool-name tool)
       =/  desc=@t  (tool-description tool)
       ?:  =('' nm)  ~
-      ?:  &(!=('' keywords) !(contains-ci nm keywords) !(contains-ci desc keywords))
+      ?:  !(matches-search nm desc keywords)
         ~
       `[nm (scot %tas sid) desc]
     =/  total=@ud  (lent matched)
@@ -1229,7 +1229,21 @@
     =/  inner-name=@t  (get-json-string args 'name')
     =/  inner-args=json
       ?.  ?=(%o -.args)  [%o ~]
-      (fall (~(get by p.args) 'arguments') [%o ~])
+      =/  raw=(unit json)  (~(get by p.args) 'arguments')
+      ?~  raw
+        ::  tolerate models that put the tool's parameters at the top
+        ::  level of the call payload instead of nesting them under
+        ::  'arguments'. forwarding {} instead makes the upstream fail
+        ::  with a confusing missing-argument error.
+        [%o (~(del by p.args) 'name')]
+      ?:  ?=([%s *] u.raw)
+        ::  tolerate JSON-encoded string arguments. parse; fall back
+        ::  to empty when the string is not a JSON object.
+        =/  parsed=(unit json)  (de:json:html p.u.raw)
+        ?:  &(?=(^ parsed) ?=([%o *] u.parsed))
+          u.parsed
+        [%o ~]
+      u.raw
     ?:  =('' inner-name)
       :_  this
       %-  give-http  :^  eyre-id  400
@@ -1998,6 +2012,7 @@
                 %-  pairs:enjs:format
                 :~  ['type' s+'object']
                     ['description' s+'Arguments matching the tool inputSchema. Pass an empty object {} if the tool takes no arguments.']
+                    ['additionalProperties' b+%.y]
                 ==
             ==
             ['required' a+~[s+'name' s+'arguments']]
@@ -2036,6 +2051,40 @@
   =/  h=tape  (cass (trip haystack))
   =/  n=tape  (cass (trip needle))
   !=(~ (find n h))
+::
+::  split a search query into non-empty space-separated terms
+::
+++  search-tokens
+  |=  raw=@t
+  ^-  (list @t)
+  =/  t=tape  (trim-spaces (trip raw))
+  |-
+  ?:  =(0 (lent t))  ~
+  =/  sep=(unit @ud)  (find " " t)
+  =/  head=tape
+    ?~  sep  t
+    (scag u.sep t)
+  =/  rest=tape
+    ?~  sep  ""
+    (trim-spaces (slag +(u.sep) t))
+  =/  token=@t  (crip head)
+  ?:  =('' token)
+    $(t rest)
+  [token $(t rest)]
+::
+::  tokenized search: every query term must match name or description
+::
+++  matches-search
+  |=  [name=@t desc=@t keywords=@t]
+  ^-  ?
+  =/  tokens=(list @t)  (search-tokens keywords)
+  |-
+  ?~  tokens  %.y
+  ?:  ?|  (contains-ci name i.tokens)
+          (contains-ci desc i.tokens)
+      ==
+    $(tokens t.tokens)
+  %.n
 ::
 ::  parse a search query string of the form "[server:foo] [keyword keyword]"
 ::  returns the explicit server filter (or '') and the remaining keyword
