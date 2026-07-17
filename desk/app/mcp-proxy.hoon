@@ -1229,7 +1229,21 @@
     =/  inner-name=@t  (get-json-string args 'name')
     =/  inner-args=json
       ?.  ?=(%o -.args)  [%o ~]
-      (fall (~(get by p.args) 'arguments') [%o ~])
+      =/  raw=(unit json)  (~(get by p.args) 'arguments')
+      ?~  raw
+        ::  tolerate models that put the tool's parameters at the top
+        ::  level of the call payload instead of nesting them under
+        ::  'arguments'. forwarding {} instead makes the upstream fail
+        ::  with a confusing missing-argument error.
+        [%o (~(del by p.args) 'name')]
+      ?:  ?=([%s *] u.raw)
+        ::  tolerate JSON-encoded string arguments. parse; fall back
+        ::  to empty when the string is not a JSON object.
+        =/  parsed=(unit json)  (de:json:html p.u.raw)
+        ?:  &(?=(^ parsed) ?=([%o *] u.parsed))
+          u.parsed
+        [%o ~]
+      u.raw
     ?:  =('' inner-name)
       :_  this
       %-  give-http  :^  eyre-id  400
