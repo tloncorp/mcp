@@ -1321,7 +1321,14 @@
               ?-    response
                   [%result %structured *]
                 %-  pairs:enjs:format
-                :~  ['structuredContent' json.response]
+                :~  :-  'content'
+                    :-  %a
+                    :~  %-  pairs:enjs:format
+                        :~  ['type' s+'text']
+                            ['text' s+(en:json:html json.response)]
+                        ==
+                    ==
+                    ['structuredContent' json.response]
                     ['isError' b+.n]
                 ==
               ::
