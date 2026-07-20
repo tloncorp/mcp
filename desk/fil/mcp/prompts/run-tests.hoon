@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Run tests'
-    'mcp/run-tests'
+:*  'mcp/run-tests'
+    'Run tests'
     '''
     Run unit tests and/or integration tests, given a desk and a path prefix.
     '''
