@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Test build'
-    'mcp/test-build'
+:*  'mcp/test-build'
+    'Test build'
     '''
     Compile a Hoon source file and report its complete dependency build error.
     '''

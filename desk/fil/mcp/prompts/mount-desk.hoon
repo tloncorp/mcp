@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Mount desk'
-    'mcp/mount-desk'
+:*  'mcp/mount-desk'
+    'Mount desk'
     '''
     Mount a desk on this ship.
     '''

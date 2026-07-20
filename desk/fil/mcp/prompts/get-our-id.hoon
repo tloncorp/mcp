@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Get Our Urbit ID'
-    'mcp/get-our-id'
+:*  'mcp/get-our-id'
+    'Get Our Urbit ID'
     'Retrieve the Urbit ID (@p) of this ship'
     ~
     ~
