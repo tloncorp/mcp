@@ -64,6 +64,20 @@
       %text  [(crip p.log) ~]
   ==
 ::
+::  +effect-saves: extract file-save effects. For a console session
+::  drum forwards these to the runtime as blits and the terminal
+::  writes them under <pier>/.urb/put; headless sole sessions like
+::  ours must forward them by hand or the file is silently lost.
+::
+++  effect-saves
+  |=  fec=sole-effect
+  ^-  (list [=path atom=@])
+  ?+  -.fec  ~
+    %mor  (zing (turn p.fec effect-saves))
+    %sav  [[p.fec q.fec] ~]
+    %sag  [[p.fec (jam q.fec)] ~]
+  ==
+::
 ++  is-pro
   |=  fec=sole-effect
   ^-  ?
@@ -155,6 +169,32 @@
     (pure:m [lines &])
   $(lines lines)
 ::
+::  +forward-saves: poke each save through drum so the runtime
+::  terminal writes the file under <pier>/.urb/put.
+::
+++  forward-saves
+  |=  saves=(list [=path atom=@])
+  =/  m  (strand ,~)
+  |-  ^-  form:m
+  ?~  saves
+    (pure:m ~)
+  ;<  ~  bind:m
+    (poke-our:io %hood %drum-put !>([path.i.saves atom.i.saves]))
+  $(saves t.saves)
+::
+::  +unix-name: where the runtime writes a saved file,
+::  e.g. /test/pill -> .urb/put/test.pill
+::
+++  unix-name
+  |=  =path
+  ^-  @t
+  %-  crip
+  =/  file=tape
+    ?~  path  ""
+    %+  roll  `(list @ta)`t.path
+    |=([seg=@ta out=_(trip i.path)] "{out}.{(trip seg)}")
+  ".urb/put/{file}"
+::
 ::  +collect-output-until-pro: gather output until Dojo reports its
 ::  next prompt, which means the command finished. Returning on mere
 ::  idleness breaks long-running commands: we would leave the %sole
@@ -164,8 +204,9 @@
 ::
 ++  collect-output-until-pro
   |=  [=wire limit=@dr]
-  =/  m  (strand ,(list cord))
+  =/  m  (strand ,[lines=(list cord) saved=(list path)])
   =|  lines=(list cord)
+  =|  saved=(list path)
   |-  ^-  form:m
   ;<  maybe=(unit (each sole-effect told:dill))  bind:m
     %+  (safe-set-timeout (unit (each sole-effect told:dill)))  limit
@@ -174,12 +215,15 @@
     ;<  out=(each sole-effect told:dill)  bind:m  (take-output wire)
     (pure:m `out)
   ?~  maybe
-    (pure:m lines)
+    (pure:m [lines saved])
   ?-    -.u.maybe
       %&
+    =/  saves=(list [=path atom=@])  (effect-saves p.u.maybe)
+    ;<  ~  bind:m  (forward-saves saves)
     =.  lines  (weld lines (effect-lines p.u.maybe))
+    =.  saved  (weld saved (turn saves head))
     ?:  (is-pro p.u.maybe)
-      (pure:m lines)
+      (pure:m [lines saved])
     $
   ::
       %|
@@ -241,7 +285,8 @@
     :-  %sole-action
     !>  ^-  sole-action
     [id %ret ~]
-  ;<  result=(list cord)  bind:m  (collect-output-until-pro wire timeout)
+  ;<  [result=(list cord) saved=(list path)]  bind:m
+    (collect-output-until-pro wire timeout)
   ;<  ~  bind:m
     (send-raw-card:io [%pass /dill-logs %arvo %d %logs ~])
   ;<  ~  bind:m  (leave-our:io wire %dojo)
@@ -249,6 +294,10 @@
   !>  ^-  response:tool:mcp
   :-  %result
   :-  %structured
-  %-  frond:enjs:format
-  [%dojo-output s+(of-wain:format result)]
+  %-  pairs:enjs:format
+  %+  weld
+    `(list [@t json])`['dojo-output' s+(of-wain:format result)]~
+  ^-  (list [@t json])
+  ?~  saved  ~
+  ['saved-files' a+(turn saved |=(=path s+(unix-name path)))]~
 ==
