@@ -155,27 +155,36 @@
     (pure:m [lines &])
   $(lines lines)
 ::
-++  collect-output-until-idle
-  |=  [=wire first-timeout=@dr idle-timeout=@dr]
+::  +collect-output-until-pro: gather output until Dojo reports its
+::  next prompt, which means the command finished. Returning on mere
+::  idleness breaks long-running commands: we would leave the %sole
+::  subscription while the command still runs, and Dojo's later %fact
+::  into the dead subscription desyncs it from drum. The timeout only
+::  caps silence between effects.
+::
+++  collect-output-until-pro
+  |=  [=wire limit=@dr]
   =/  m  (strand ,(list cord))
   =|  lines=(list cord)
-  =|  seen=?
   |-  ^-  form:m
   ;<  maybe=(unit (each sole-effect told:dill))  bind:m
-    %+  (safe-set-timeout (unit (each sole-effect told:dill)))
-      ?:(seen idle-timeout first-timeout)
+    %+  (safe-set-timeout (unit (each sole-effect told:dill)))  limit
     =/  m  (strand ,(unit (each sole-effect told:dill)))
     ^-  form:m
     ;<  out=(each sole-effect told:dill)  bind:m  (take-output wire)
     (pure:m `out)
   ?~  maybe
     (pure:m lines)
-  =/  extra=wain
-    ?-  -.u.maybe
-      %&  (effect-lines p.u.maybe)
-      %|  (log-lines p.u.maybe)
-    ==
-  $(lines (weld lines extra), seen &)
+  ?-    -.u.maybe
+      %&
+    =.  lines  (weld lines (effect-lines p.u.maybe))
+    ?:  (is-pro p.u.maybe)
+      (pure:m lines)
+    $
+  ::
+      %|
+    $(lines (weld lines (log-lines p.u.maybe)))
+  ==
 --
 ::
 ^-  tool:mcp
@@ -193,8 +202,9 @@
       :-  'timeout-seconds'
       :-  %number
       '''
-      Optional timeout in seconds while waiting for Dojo output.
-      Defaults to 10.
+      Optional timeout in seconds. Caps the silence between pieces of
+      Dojo output, not the total run time; collection ends when Dojo
+      shows its next prompt. Defaults to 10.
       '''
   ==
   ~['command']
@@ -231,7 +241,7 @@
     :-  %sole-action
     !>  ^-  sole-action
     [id %ret ~]
-  ;<  result=(list cord)  bind:m  (collect-output-until-idle wire timeout ~s1)
+  ;<  result=(list cord)  bind:m  (collect-output-until-pro wire timeout)
   ;<  ~  bind:m
     (send-raw-card:io [%pass /dill-logs %arvo %d %logs ~])
   ;<  ~  bind:m  (leave-our:io wire %dojo)
