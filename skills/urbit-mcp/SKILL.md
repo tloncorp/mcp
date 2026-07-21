@@ -68,6 +68,17 @@ no recompile needed. See [references/extending.md](references/extending.md)
 for the thread-builder signature, argument shapes, and the desk file layout
 that `mcp/import-mcp-*` reads from.
 
+Caution: `mcp/import-mcp-*` reads other agents' `/x/mcp/*` scries, not desk
+files, so it cannot load a new file committed to the %mcp desk itself. To
+register a new file on %mcp-server's own desk, run:
+
+```
+:mcp-server &add-tool -build-file /=mcp=/fil/mcp/tools/my-tool/hoon
+```
+
+through `dojo/command` (marks `%add-prompt`, `%add-resource`, `%add-template`
+work the same way for the other feature kinds).
+
 ## Prompts and resources
 
 The server also serves MCP **prompts** (slash commands in most harnesses,

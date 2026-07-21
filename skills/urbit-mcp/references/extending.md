@@ -99,8 +99,14 @@ URI is needed.
 
 ## Testing a new feature
 
-1. If written as a desk file: `mcp/commit-desk`, then the matching
-   `mcp/import-mcp-*` with that desk. Import reports per-file build failures.
+1. If written as a desk file on a third-party desk: `mcp/commit-desk`, then
+   the matching `mcp/import-mcp-*` with that desk. Import reads the desk's
+   live agents' `/x/mcp/*` scries, so it only picks up what those agents
+   already serve — it does not build desk files. On the %mcp desk itself,
+   commit with `mcp/commit-desk` (which reports build errors), then register
+   the file through `dojo/command`:
+   `:mcp-server &add-tool -build-file /=mcp=/fil/mcp/tools/my-tool/hoon`
+   (marks `%add-prompt`, `%add-resource`, `%add-template` for the others).
 2. If added inline: the `add-mcp-*` tool builds the gate immediately and
    returns any compile error.
 3. Call the new tool (or read the new resource) once with harmless
