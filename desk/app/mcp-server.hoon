@@ -168,6 +168,28 @@
       ==
   ==
 ::
+::  +send-sse-ping: SSE comment line to keep the connection open
+::
+++  send-sse-ping
+  |=  eyre-id=@ta
+  ^-  (list card)
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(as-octt:mimes:html ":\0a\0a"))]
+      ==
+  ==
+::
+++  close-sse
+  |=  eyre-id=@ta
+  ^-  (list card)
+  ~[[%give %kick ~[/http-response/[eyre-id]] ~]]
+::
+++  keepalive-interval  ~s20
+::
+++  set-keepalive
+  |=  [now=@da eyre-id=@ta]
+  ^-  card
+  [%pass /keepalive/[eyre-id] %arvo %b %wait (add now keepalive-interval)]
+::
 ++  list-changed-notification
   |=  method=@t
   ^-  json
@@ -1203,12 +1225,25 @@
                 ==
               --
           ^-  (list card)
-          :~  :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)
-                  %arvo  %k
-                  %lard  q.byk.bowl
-                  %-  thread-builder.i.tool-results
-                  (~(run by u.args-map) parse-arg)
-          ==  ==
+          ::  When the client accepts SSE (the MCP streamable-HTTP spec
+          ::  says it must for POST), answer with an SSE stream and ping
+          ::  it on a timer so long-running tools don't lose the
+          ::  connection before the thread finishes.
+          ::
+          =/  sse=?  ?=(^ (find "text/event-stream" (trip u.accept)))
+          =/  mode=@ta  ?:(sse %sse %plain)
+          =/  run-tool=card
+            :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)/[mode]
+                %arvo  %k
+                %lard  q.byk.bowl
+                %-  thread-builder.i.tool-results
+                (~(run by u.args-map) parse-arg)
+            ==
+          ?.  sse
+            ~[run-tool]
+          %+  weld
+            (send-sse-start eyre-id)
+          ~[(set-keepalive now.bowl eyre-id) run-tool]
         ==
       ==
     ==
@@ -1265,6 +1300,23 @@
   ?+  pole
     `this
   ::
+      [%keepalive eyre-id=@ta ~]
+    ?>  ?=([%behn %wake *] sign-arvo)
+    ::  Ping only while the response channel is still open; once the
+    ::  result is sent (or the client leaves) the subscription is gone
+    ::  and the timer chain stops.
+    ::
+    =/  live=?
+      %+  lien
+        ~(tap by sup.bowl)
+      |=  [=duct =ship pat=path]
+      =(pat /http-response/[eyre-id.pole])
+    ?.  live
+      `this
+    :_  this
+    :-  (set-keepalive now.bowl eyre-id.pole)
+    (send-sse-ping eyre-id.pole)
+  ::
       [%eyre %connect ~]
     ?>  ?=([%eyre %bound *] sign-arvo)
     ?:  accepted.sign-arvo
@@ -1272,22 +1324,31 @@
     %-  (slog leaf/"mcp: failed to bind {<dap.bowl>} to /mcp" ~)
     `this
   ::
-      [%response %tool eyre-id=@ta rpc-id=@ta ~]
+      [%response %tool eyre-id=@ta rpc-id=@ta mode=@ta ~]
+    ::  +finish: deliver the tool result. Over SSE, send the JSON as an
+    ::  event and close the stream; otherwise, one plain HTTP response.
+    ::
+    =/  finish
+      |=  =json
+      ^-  (list card)
+      ?.  =(%sse mode.pole)
+        (send-event eyre-id.pole json)
+      %+  weld
+        (send-sse-json eyre-id.pole json)
+      (close-sse eyre-id.pole)
     ?+  sign-arvo
       (on-arvo:def pole sign-arvo)
     ::
         [%khan %arow *]
       ?:  ?=(%.n -.p.sign-arvo)
         :_  this
-        %+  send-event
-          eyre-id.pole
+        %-  finish
         (internal:error:rpc rpc-id.pole (crip (print-tang-to-wain tang.p.p.sign-arvo)) ~)
       ?>  ?=([%khan %arow %.y %noun *] sign-arvo)
       =/  [%khan %arow %.y %noun =vase]  sign-arvo
       =/  =response:tool:mcp  !<(response:tool:mcp vase)
         :_  this
-        %+  send-event
-          eyre-id.pole
+        %-  finish
         ?-    -.response
             %error
           %-  pairs:enjs:format
