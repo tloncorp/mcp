@@ -30,7 +30,7 @@ jobs:
 
       - name: Create desk.ship
         run: |
-          printf '%s\n' "~${DIST_PIER}" > dist/desk.ship
+          printf '%s\n' "~${DIST_PIER}" > zig-out/desk.ship
 
       - name: Setup SSH
         run: |
@@ -45,7 +45,7 @@ jobs:
       - name: Deploy desk
         run: |
           rsync -az --delete --exclude='.git*' \
-            dist/ ${SHIP_HOST}:${PIER_PATH}/${DIST_PIER}/${DESK}/
+            zig-out/ ${SHIP_HOST}:${PIER_PATH}/${DIST_PIER}/${DESK}/
 
       - name: Commit desk on ship
         run: |

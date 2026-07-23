@@ -1,16 +1,16 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'mcp/run-tests'
-    'Run tests'
+:*  'mcp/test-build'
+    'Test build'
     '''
-    Run unit tests and/or integration tests, given a desk and a path prefix.
+    Compile a Hoon source file and report its complete dependency build error.
     '''
     :~  :*  'desk'
-            'Desk name to run tests on (e.g. "base" or "mcp-server")'
+            'Desk containing the source file (e.g. "base" or "mcp")'
             &
         ==
         :*  'path'
-            'Path prefix for tests to run (e.g. "/tests" or "/tests/lib")'
+            'Clay source path including its mark (e.g. "/lib/foo/hoon")'
             &
         ==
     ==
@@ -27,15 +27,14 @@
       ?:  =("%" -.desk-str)
         "{(trip u.desk-str)}"
       "%{(trip u.desk-str)}"
-    =/  path-part=tape
-      "{(trip u.path-str)}"
     :~  :-  %user
         :-  %text
         %-  some
         %-  crip
         """
-        Use your run-tests tool to run tests on
-        the {desk-part} desk at path {path-part}.
+        Use your test-build tool to compile {(trip u.path-str)} on the
+        {desk-part} desk. If it fails, report the complete compiler and
+        dependency trace returned by the tool.
         """
     ==
 ==
