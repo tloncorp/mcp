@@ -1,6 +1,7 @@
 /-  mcp
 /+  dbug, verb, server, default-agent, pf=pretty-file,
-    jut=json-utils, beam-uri=uri-beam, scry-uri=uri-scry
+    jut=json-utils, beam-uri=uri-beam, fine-uri=uri-fine,
+    scry-uri=uri-scry
 ::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
@@ -126,6 +127,56 @@
     (loopback-authority (slag 8 origin-tape))
   %.n
 ::
+++  page-to-mime
+  |=  [our=@p desk=@tas now=@da =page]
+  ^-  mime
+  ?:  =(%mime p.page)
+    ;;(mime q.page)
+  =/  =dais:clay
+    .^(dais:clay %cb /(scot %p our)/[desk]/(scot %da now)/[p.page])
+  =/  vax=vase  (vale:dais q.page)
+  =/  =tube:clay
+    .^(tube:clay %cc /(scot %p our)/[desk]/(scot %da now)/[p.page]/mime)
+  !<(mime (tube vax))
+::
+++  fine-result
+  |=  [our=@p desk=@tas now=@da rpc-id=@ta uri=@t =page]
+  ^-  json
+  =/  mime-result
+    %-  mule
+    |.
+    (page-to-mime our desk now page)
+  ?-  -.mime-result
+  ::
+      %|
+    %-  internal:error:rpc
+    :+  rpc-id
+        (crip "Could not convert fine resource mark %{<p.page>} to %mime; ensure this desk has /mar/%{<p.page>}/hoon with +mime:grow arm")
+    %-  some
+    %-  pairs:enjs:format
+    :~  ['uri' s+uri]
+        ['mark' s+(crip (trip p.page))]
+    ==
+  ::
+      %&
+  =/  =mime  p.mime-result
+  %-  result:rpc
+  :-  rpc-id
+  %-  pairs:enjs:format
+  :~  :-  'contents'
+      :-  %a
+      :~  %-  pairs:enjs:format
+          :~  ['uri' s+uri]
+              ['mimeType' s+(rsh 3^1 (spat p.mime))]
+              :-  'blob'
+              :-  %s
+              %-  en:base64:mimes:html
+              q.mime
+          ==
+      ==
+  ==
+  ==
+::
 ++  simple-response
   |=  [eyre-id=@ta status=@ud headers=(list [key=@t value=@t])]
   ^-  (list card)
@@ -180,6 +231,28 @@
           [%http-response-data !>(`(sse-data json))]
       ==
   ==
+::
+::  +send-sse-ping: SSE comment line to keep the connection open
+::
+++  send-sse-ping
+  |=  eyre-id=@ta
+  ^-  (list card)
+  :~  :*  %give  %fact  ~[/http-response/[eyre-id]]
+          [%http-response-data !>(`(as-octt:mimes:html ":\0a\0a"))]
+      ==
+  ==
+::
+++  close-sse
+  |=  eyre-id=@ta
+  ^-  (list card)
+  ~[[%give %kick ~[/http-response/[eyre-id]] ~]]
+::
+++  keepalive-interval  ~s20
+::
+++  set-keepalive
+  |=  [now=@da eyre-id=@ta]
+  ^-  card
+  [%pass /keepalive/[eyre-id] %arvo %b %wait (add now keepalive-interval)]
 ::
 ++  list-changed-notification
   |=  method=@t
@@ -551,11 +624,9 @@
         (get-header:http 'host' header-list.request.req)
       ?~(h 'localhost' u.h)
     ::
-    ::  Enforce HTTPS outside loopback, and reject browser origins
-    ::  that do not correspond to the local endpoint or our EAuth URL.
+    ::  Reject browser origins that do not correspond to the local
+    ::  endpoint or our EAuth URL.
     =/  local=?  (loopback-authority (trip host))
-    ?.  ?|(secure.req local)
-      [(simple-response eyre-id 400 ~) this]
     =/  origin=(unit @t)
       (get-header:http 'origin' header-list.request.req)
     =/  origin-allowed=?
@@ -573,8 +644,7 @@
       =(u.origin u.eauth)
     ?.  origin-allowed
       [(simple-response eyre-id 403 ~) this]
-    =/  base=@t
-      (rap 3 ?.(secure.req 'http://' 'https://') host ~)
+    =/  base=@t  (rap 3 'http://' host ~)
     ::  RFC 9728 protected-resource metadata at the spec'd path.
     ::  Empty authorization_servers + bearer_methods=header tells
     ::  the client to use the auth header it already has.
@@ -1117,6 +1187,23 @@
                 ==  ==
               ==
             ==
+          ::
+              %'fine'
+            ::  Try the public namespace first.  +parse:fine-uri normalizes
+            ::  fine://.../g/x/revision/agent//1/path to the spar Ames expects.
+            ::  A null result is retried as a two-party encrypted %chum
+            ::  request in +on-arvo.
+            =/  parsed-fine=(unit spar:ames)
+              (parse:fine-uri u.uri)
+            ?~  parsed-fine
+              :_  this
+              (send-event eyre-id (request:error:rpc p.u.id (crip "Invalid fine URI {<u.uri>}") ~))
+            :_  this
+            :~  :*  %pass
+                    /response/resource/fine/keen/[eyre-id]/(scot %ud u.request-id)/[u.uri]
+                    %arvo  %a  %keen  ~
+                    u.parsed-fine
+            ==  ==
           ==
         ::
             [~ [%s %'prompts/get']]
@@ -1253,12 +1340,25 @@
                 ==
               --
           ^-  (list card)
-          :~  :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)
-                  %arvo  %k
-                  %lard  q.byk.bowl
-                  %-  thread-builder.i.tool-results
-                  (~(run by u.args-map) parse-arg)
-          ==  ==
+          ::  When the client accepts SSE (the MCP streamable-HTTP spec
+          ::  says it must for POST), answer with an SSE stream and ping
+          ::  it on a timer so long-running tools don't lose the
+          ::  connection before the thread finishes.
+          ::
+          =/  sse=?  ?=(^ (find "text/event-stream" (trip u.accept)))
+          =/  mode=@ta  ?:(sse %sse %plain)
+          =/  run-tool=card
+            :*  %pass  /response/tool/[eyre-id]/(scot %ud u.rpc-id)/[mode]
+                %arvo  %k
+                %lard  q.byk.bowl
+                %-  thread-builder.i.tool-results
+                (~(run by u.args-map) parse-arg)
+            ==
+          ?.  sse
+            ~[run-tool]
+          %+  weld
+            (send-sse-start eyre-id)
+          ~[(set-keepalive now.bowl eyre-id) run-tool]
         ==
       ==
     ==
@@ -1320,6 +1420,23 @@
   ?+  pole
     `this
   ::
+      [%keepalive eyre-id=@ta ~]
+    ?>  ?=([%behn %wake *] sign-arvo)
+    ::  Ping only while the response channel is still open; once the
+    ::  result is sent (or the client leaves) the subscription is gone
+    ::  and the timer chain stops.
+    ::
+    =/  live=?
+      %+  lien
+        ~(tap by sup.bowl)
+      |=  [=duct =ship pat=path]
+      =(pat /http-response/[eyre-id.pole])
+    ?.  live
+      `this
+    :_  this
+    :-  (set-keepalive now.bowl eyre-id.pole)
+    (send-sse-ping eyre-id.pole)
+  ::
       [%eyre %connect ~]
     ?>  ?=([%eyre %bound *] sign-arvo)
     ?:  accepted.sign-arvo
@@ -1327,22 +1444,31 @@
     %-  (slog leaf/"mcp: failed to bind {<dap.bowl>} to /mcp" ~)
     `this
   ::
-      [%response %tool eyre-id=@ta rpc-id=@ta ~]
+      [%response %tool eyre-id=@ta rpc-id=@ta mode=@ta ~]
+    ::  +finish: deliver the tool result. Over SSE, send the JSON as an
+    ::  event and close the stream; otherwise, one plain HTTP response.
+    ::
+    =/  finish
+      |=  =json
+      ^-  (list card)
+      ?.  =(%sse mode.pole)
+        (send-event eyre-id.pole json)
+      %+  weld
+        (send-sse-json eyre-id.pole json)
+      (close-sse eyre-id.pole)
     ?+  sign-arvo
       (on-arvo:def pole sign-arvo)
     ::
         [%khan %arow *]
       ?:  ?=(%.n -.p.sign-arvo)
         :_  this
-        %+  send-event
-          eyre-id.pole
+        %-  finish
         (internal:error:rpc rpc-id.pole (crip (print-tang-to-wain tang.p.p.sign-arvo)) ~)
       ?>  ?=([%khan %arow %.y %noun *] sign-arvo)
       =/  [%khan %arow %.y %noun =vase]  sign-arvo
       =/  =response:tool:mcp  !<(response:tool:mcp vase)
         :_  this
-        %+  send-event
-          eyre-id.pole
+        %-  finish
         ?-    -.response
             %error
           %-  pairs:enjs:format
@@ -1376,7 +1502,13 @@
               %-  pairs:enjs:format
               ?-    response
                   [%result %structured *]
-                :~  ['content' a+~]
+                :~  :-  'content'
+                    :-  %a
+                    :~  %-  pairs:enjs:format
+                        :~  ['type' s+'text']
+                            ['text' s+(en:json:html json.response)]
+                        ==
+                    ==
                     ['structuredContent' json.response]
                     ['isError' b+.n]
                 ==
@@ -1606,6 +1738,36 @@
                 ==
             ==
         ==
+      ==
+    ==
+  ::
+      [%response %resource %fine task=?(%chum %keen) eyre-id=@ta rpc-id=@ta uri=@t ~]
+    ?+  sign-arvo
+      (on-arvo:def pole sign-arvo)
+    ::
+        [%ames %sage *]
+      =/  =sage:mess:ames  sage.sign-arvo
+      ?.  ?=(~ q.sage)
+        :_  this
+        (send-event eyre-id.pole (fine-result our.bowl q.byk.bowl now.bowl rpc-id.pole uri.pole q.sage))
+      ?-    task.pole
+          %chum
+        :_  this
+        %+  send-event
+          eyre-id.pole
+        %:  internal:error:rpc
+            rpc-id.pole
+            'Remote scry failed'
+            `(frond:enjs:format %path s+(spat path.p.sage))
+        ==
+      ::
+          %keen
+        :_  this
+        :~  :*  %pass
+                /response/resource/fine/chum/[eyre-id.pole]/[rpc-id.pole]/[uri.pole]
+                %arvo  %a  %chum
+                p.sage
+        ==  ==
       ==
     ==
   ==

@@ -50,7 +50,7 @@ Create and mount the desk on your Urbit ship:
 > |mount %mcp
 ```
 
-In the `urbit-mcp` folder, run `zig build`. By default this will install dependencies into `/dist` in this folder. Use the `-Ddesk` option to additionally replace the contents of your ship's desk with your source desk.
+In the `urbit-mcp` folder, run `zig build`. By default this will install dependencies into `/zig-out` in this folder. Use `--prefix`/`-p` to choose another output directory, and use the `-Ddesk` option to additionally replace the contents of your ship's desk with your source desk.
 
 ```bash
 $ cd urbit-mcp
@@ -179,7 +179,8 @@ git rebase --exec "true" HEAD~N
 
 ### Build Commands
 
-- `zig build` - Build `/desk` and dependencies into `/dist`
-- `zig build clean` - Remove `/dist`
-- `zig build clear` - Remove `/dist` and cached dependencies from `.zig-cache/desk-deps`
-- `zig build -Ddesk=~/path/to/desk` - Build, clean the target desk directory, and copy `dist` into it; supports absolute and relative paths
+- `zig build` - Build `/desk` and dependencies into `/zig-out`
+- `zig build -p ~/path/to/output` - Build into the selected install prefix
+- `zig build clean` - Remove the install prefix
+- `zig build clear` - Remove the install prefix and cached dependencies from `.zig-cache/desk-deps`
+- `zig build -Ddesk=~/path/to/desk` - Build, clean the target desk directory, and copy the install prefix into it; supports absolute and relative paths
