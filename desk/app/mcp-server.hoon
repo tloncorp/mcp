@@ -1502,7 +1502,6 @@
               %-  pairs:enjs:format
               ?-    response
                   [%result %structured *]
-                %-  pairs:enjs:format
                 :~  :-  'content'
                     :-  %a
                     :~  %-  pairs:enjs:format
