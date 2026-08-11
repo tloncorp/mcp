@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Revive desk'
-    'mcp/revive-desk'
+:*  'mcp/revive-desk'
+    'Revive desk'
     '''
     Boot the agents on a nuked / suspended desk.
     '''

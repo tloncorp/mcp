@@ -4,6 +4,7 @@
 .tags
 dist
 dist-dev
+zig-out
 
 # claude
 .claude

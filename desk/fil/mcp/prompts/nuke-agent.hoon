@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Nuke agent'
-    'mcp/nuke-agent'
+:*  'mcp/nuke-agent'
+    'Nuke agent'
     '''
     Permanently wipe the state of a Gall agent.
     '''

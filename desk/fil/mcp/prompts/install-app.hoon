@@ -1,7 +1,7 @@
 /-  mcp
 ^-  prompt:mcp
-:*  'Install app'
-    'mcp/install-app'
+:*  'mcp/install-app'
+    'Install app'
     '''
     Install a desk (local or remote).
     '''
