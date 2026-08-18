@@ -387,6 +387,15 @@
           %arvo  %e  %connect
           [`/mcp dap.bowl]
       ==
+      ::  Older versions of %mcp-server bound all of /oauth for MCP auth
+      ::  stubs.  That shadows the real %oauth agent's callback and JSON API.
+      ::  Relinquish the stale binding during both init and upgrade; %oauth
+      ::  now serves the three compatibility stubs itself.
+      ::
+      :*  %pass  /eyre/disconnect/oauth
+          %arvo  %e  %disconnect
+          [~ /oauth]
+      ==
       ::  Bind /.well-known so we can stub OAuth discovery endpoints.
       ::  MCP clients probe these per the draft auth spec; without a
       ::  binding Eyre redirects to /apps/landscape/ (HTML), and the
@@ -395,16 +404,6 @@
       :*  %pass  /eyre/connect/well-known
           %arvo  %e  %connect
           [[~ ~['.well-known']] dap.bowl]
-      ==
-      ::  Bind /oauth so DCR/authorize/token probes from MCP clients
-      ::  get a clean RFC 6749 JSON error rather than Eyre's HTML
-      ::  login fallback. Without this the Claude Code /mcp dialog's
-      ::  OAuth flow disconnects the session even when cookie auth
-      ::  is configured.
-      ::
-      :*  %pass  /eyre/connect/oauth
-          %arvo  %e  %connect
-          [[~ ~['oauth']] dap.bowl]
       ==
       :*  %pass  ~
           %arvo  %k
@@ -684,21 +683,6 @@
         ==
       :_  this
       (json-response eyre-id 404 (pairs:enjs:format ~[['error' s+'not found']]))
-    ::  OAuth endpoint stubs. We don't speak OAuth; auth is via the
-    ::  X-Api-Key configured on the MCP client. Returning a
-    ::  proper RFC 6749 JSON error keeps clients (e.g. Claude Code's
-    ::  /mcp dialog) from choking on Eyre's HTML login fallback.
-    ::
-    ?:  ?&  (gte (lent url-tape) 6)
-            =("/oauth" (scag 6 url-tape))
-        ==
-      =/  err=json
-        %-  pairs:enjs:format
-        :~  ['error' s+'unsupported_response_type']
-            ['error_description' s+'this server does not implement OAuth']
-        ==
-      :_  this
-      (json-response eyre-id 400 err)
     ::  auth: require x-api-key header matching the proxy-managed token
     =/  active-token=@t
       (proxy-auth-token our.bowl now.bowl auth-token)

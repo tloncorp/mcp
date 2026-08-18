@@ -46,7 +46,8 @@
     ==
   ::  re-register refresh timers for all grants with expiry
   =/  eyre-cards=(list card)
-    :~  [%pass /eyre/connect %arvo %e %connect [~ /oauth] %oauth]
+    :~  [%pass /eyre/disconnect %arvo %e %disconnect [~ /oauth]]
+        [%pass /eyre/connect %arvo %e %connect [~ /oauth] %oauth]
     ==
   =/  timer-cards=(list card)
     %+  murn  ~(tap by grants.new-state)
@@ -337,6 +338,21 @@
         %+  give-simple-payload:app:server  eyre-id
         (login-redirect:gen:server request.req)
       (handle-api eyre-id req t.t.site)
+    ::  MCP clients may follow the discovery document and probe these
+    ::  endpoints even though /mcp authenticates with X-Api-Key. Keep the
+    ::  clean JSON failure from the old %mcp-server stub without letting
+    ::  that agent shadow this agent's callback and management API.
+    ::
+    ?:  ?=([%oauth ?(%authorize %token %register) ~] site)
+      =/  err=json
+        %-  pairs:enjs:format
+        :~  ['error' s+'unsupported_response_type']
+            ['error_description' s+'this server does not implement OAuth']
+        ==
+      :_  this
+      %-  give-http  :^  eyre-id  400
+      ~[['content-type' 'application/json']]
+      (some (as-octs:mimes:html (en:json:html err)))
     ::  no human-facing UI here — the user surface is on horizon/tlonbot,
     ::  the operator surface is the dojo show-* pokes (%show-providers,
     ::  %show-grants, %show-relay, %show-config).
