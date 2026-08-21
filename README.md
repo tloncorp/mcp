@@ -102,18 +102,13 @@ claude mcp add --transport http zod \
 
 ### 3B. Register with Codex
 
-Codex needs the `mcp-proxy` python bridge. Install with `uvx mcp-proxy`, then
-append to `~/.codex/config.toml`:
+Codex connects directly to the Streamable HTTP endpoint. Add this to
+`~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.zod]
-command = "uvx"
-args = [
-  "mcp-proxy",
-  "--transport", "streamablehttp",
-  "--headers", "X-Api-Key", "<your-key>",
-  "http://localhost:8080/apps/mcp/mcp"
-]
+url = "http://localhost:8080/apps/mcp/mcp"
+http_headers = { "X-Api-Key" = "<your-key>" }
 ```
 
 ## Usage
