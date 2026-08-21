@@ -23,6 +23,20 @@
   |=  =tape
   (crip tape)
 ::
+::  +as-object: coerce a tool's structured payload to a JSON object.
+::
+::  MCP requires `structuredContent` to be an object. A tool that returns an
+::  array or an atom there produces a response strict clients reject whole,
+::  discarding the sibling `content` field that says what went wrong — so a
+::  build error comes back as an unexplained schema complaint. Wrap anything
+::  that is not already an object rather than dropping it.
+::
+++  as-object
+  |=  jon=json
+  ^-  json
+  ?:  ?=([%o *] jon)  jon
+  (frond:enjs:format 'data' jon)
+::
 ++  rpc
   |%
   +$  response
@@ -1471,7 +1485,7 @@
                   ==
                   ?~  data.response
                     ~
-                  :~  ['structuredContent' u.data.response]
+                  :~  ['structuredContent' (as-object u.data.response)]
                   ==
                   :~  ['isError' b+.y]
                   ==
@@ -1493,7 +1507,7 @@
                             ['text' s+(en:json:html json.response)]
                         ==
                     ==
-                    ['structuredContent' json.response]
+                    ['structuredContent' (as-object json.response)]
                     ['isError' b+.n]
                 ==
               ::

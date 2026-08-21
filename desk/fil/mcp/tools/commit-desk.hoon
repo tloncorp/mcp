@@ -142,6 +142,8 @@
       :-  %error
       :-  (of-wain:format error-lines)
       %-  some
+      %-  frond:enjs:format
+      :-  'errors'
       :-  %a
       %+  turn
         error-lines
@@ -153,6 +155,8 @@
       !>  ^-  response:tool:mcp
       :-  %result
       :-  %structured
+      %-  frond:enjs:format
+      :-  'lines'
       :-  %a
       %+  turn
         (print-tang-to-wain p.told)
