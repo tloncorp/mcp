@@ -552,14 +552,14 @@
                 :~  ['name' s+(crip "{(trip (scot %p our.bowl))} mcp-proxy")]
                     ['version' s+'1.0.0']
                 ==
-                ['protocolVersion' s+'2024-11-05']
+                ['protocolVersion' s+'2025-03-26']
             ==
         ==
       (give-http eyre-id 200 ~[cors ['content-type' 'application/json']] (some (as-octs:mimes:html (en:json:html resp))))
     ::
         %'notifications/initialized'
       :_  this
-      (give-http eyre-id 200 ~[cors] ~)
+      (give-http eyre-id 202 ~[cors ['mcp-protocol-version' '2025-03-26']] ~)
     ::
         ?(%'tools/list' %'resources/list' %'prompts/list')
       ::  code-mode: return meta-tools for tools/list and empty
