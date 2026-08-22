@@ -220,7 +220,12 @@
       ?:  (~(has by servers) id.act)  `this
       =.  servers  (~(put by servers) id.act mcp-server.act)
       =.  server-order  (snoc server-order id.act)
-      `this
+      ?.  =(%proxy mode.mcp-server.act)  `this
+      =/  c=(unit card)
+        %-  prime-one-proxy-card
+        [id.act mcp-server.act (~(get by cookies) id.act) our.bowl now.bowl]
+      ?~  c  `this
+      :_  this  ~[u.c]
         %config-oauth-server
       =/  existed=?  (~(has by servers) id.act)
       =.  servers  (~(put by servers) id.act mcp-server.act)
@@ -242,7 +247,13 @@
       `this
         %update-server
       =.  servers  (~(put by servers) id.act mcp-server.act)
-      `this
+      =.  proxy-tools-cache  (~(del by proxy-tools-cache) id.act)
+      ?.  =(%proxy mode.mcp-server.act)  `this
+      =/  c=(unit card)
+        %-  prime-one-proxy-card
+        [id.act mcp-server.act (~(get by cookies) id.act) our.bowl now.bowl]
+      ?~  c  `this
+      :_  this  ~[u.c]
         %toggle-server
       =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) id.act)
       ?~  srv  `this
@@ -2863,7 +2874,7 @@
   ==
 ::
 ::  build a single iris card that POSTs initialize to one upstream
-::  (used by add-server / refresh-spec to prime just the affected
+::  (used by add-server / update-server / refresh-spec to prime just the affected
 ::  upstream rather than every one). The actual tools/list fires
 ::  from the [%iris %init @ *] handler once the session is known.
 ::
