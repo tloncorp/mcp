@@ -3,12 +3,40 @@
     jut=json-utils, beam-uri=uri-beam, fine-uri=uri-fine,
     scry-uri=uri-scry
 ::
+::  default features are imported with /~
+::  to force rebuilds when they're added or changed
+/~  fil-tools     tool:mcp               /fil/mcp/tools
+/~  fil-prompts   prompt:mcp             /fil/mcp/prompts
+/~  fil-res-beam  resource:mcp           /fil/mcp/resources/beam
+/~  fil-res-scry  resource:mcp           /fil/mcp/resources/scry
+/~  fil-res-docs  resource:mcp           /fil/mcp/resources/urbit-docs
+/~  fil-tpl-scry  template:resource:mcp  /fil/mcp/templates/scry
+/~  fil-tpl-fine  template:resource:mcp  /fil/mcp/templates/fine
+::
 /$  tools-to-json      %mcp-tools      %json
 /$  prompts-to-json    %mcp-prompts    %json
 /$  resources-to-json  %mcp-resources  %json
 /$  templates-to-json  %mcp-templates  %json
 ::
 |%
+::
+::  replace .old entries with .new entries that share .key
+++  merge-features
+  |*  [new=(list) old=(set) key=$-(* *)]
+  ^+  old
+  ::  Empty old must exit before the skip gate below is built: its
+  ::  sample type is _(head ~(tap in old)), and a $_ bunt EVALUATES
+  ::  the expression — head of an empty tap crashes. Every fresh
+  ::  install has empty sets, so on-init died in gall while upgrades
+  ::  (non-empty state via on-load) sailed through. That asymmetry is
+  ::  why this bug survived on long-lived ships.
+  ?:  =(~ old)  (silt new)
+  =/  keys  (silt (turn new key))
+  %-  silt
+  %+  weld  new
+  %+  skip  ~(tap in old)
+  |=(o=_(head ~(tap in old)) (~(has in keys) (key o)))
+::
 ++  mcp-protocol-version  %'2025-11-25'
 ::
 ++  print-tang-to-wain
@@ -315,6 +343,21 @@
     (trip (en:json:html json))
 ::
 +$  card  card:agent:gall
+::
+++  install-defaults
+  |=  $:  old=state-2
+          tools=(list tool:mcp)
+          prompts=(list prompt:mcp)
+          resources=(list resource:mcp)
+          templates=(list template:resource:mcp)
+      ==
+  ^-  state-2
+  %=  old
+    tools      (merge-features tools tools.old |=(t=tool:mcp name.t))
+    prompts    (merge-features prompts prompts.old |=(p=prompt:mcp name.p))
+    resources  (merge-features resources resources.old |=(r=resource:mcp uri.r))
+    templates  (merge-features templates templates.old |=(t=template:resource:mcp name.t))
+  ==
 +$  state-0
   $:  %0
       tools=(set tool:mcp)
@@ -375,8 +418,12 @@
 =*  state  -
 %+  verb  |
 |_  =bowl:gall
-+*  this   .
-    def    ~(. (default-agent this %|) bowl)
++*  this               .
+    def                ~(. (default-agent this %|) bowl)
+    default-tools      ~(val by fil-tools)
+    default-prompts    ~(val by fil-prompts)
+    default-templates  (weld ~(val by fil-tpl-scry) ~(val by fil-tpl-fine))
+    default-resources  :(weld ~(val by fil-res-beam) ~(val by fil-res-scry) ~(val by fil-res-docs))
 ::
 ++  on-agent  on-agent:def
 ++  on-leave  on-leave:def
@@ -390,13 +437,21 @@
   ^-  (quip card _this)
   ::  Persisted MCP feature state contains gates from /sur/mcp. Across
   ::  Kelvin upgrades those old gates can fail to nest into the new molds
-  ::  and block Gall load. Rebuild features from /fil/mcp instead; %mcp-proxy
-  ::  resyncs the auth token on its own load.
+  ::  and block Gall load. Rebuild the Ford-imported defaults instead;
+  ::  %mcp-proxy resyncs the auth token on its own load.
   on-init
 ::
 ++  on-init
   ^-  (quip card _this)
-  :_  this
+  :_  %=  this
+        state  %-  install-defaults
+               :*  state
+                   default-tools
+                   default-prompts
+                   default-resources
+                   default-templates
+               ==
+      ==
   :~  :*  %pass  /eyre/connect
           %arvo  %e  %connect
           [`/mcp dap.bowl]
@@ -419,25 +474,7 @@
           %arvo  %e  %connect
           [[~ ~['.well-known']] dap.bowl]
       ==
-      :*  %pass  ~
-          %arvo  %k
-          %fard  q.byk.bowl
-          %install-features
-          :-  %noun
-          !>  ^-  (list beam)
-          %+  turn
-            .^  (list path)
-                %ct
-                /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)/fil/mcp
-            ==
-          |=  pax=path
-          ^-  beam
-          %-  need
-          %-  de-beam
-          %+  welp
-            /(scot %p our.bowl)/[q.byk.bowl]/(scot %da now.bowl)
-          pax
-  ==  ==
+  ==
 ::
 ++  on-poke
   |=  [=mark =vase]
@@ -505,7 +542,7 @@
                      ?:  %+  lien
                            imported
                          |=  new=prompt:mcp
-                         =(title.new title.old)
+                         =(name.new name.old)
                          ~
                        `old
           ==
@@ -564,7 +601,20 @@
             %add-resource  'notifications/resources/list_changed'
             %add-template  'notifications/resources/list_changed'
           ==
-        :-  (broadcast-list-changed bowl sse-sessions notif)
+        ::  An add that leaves the feature set as it was (for instance
+        ::  the install-features thread re-importing an unchanged file
+        ::  on load) is not a list change; skip the broadcast for it.
+        ::
+        =/  changed=?
+          ?-  mark
+            %add-tool      !(~(has in tools) !<(tool:mcp vase))
+            %add-prompt    !(~(has in prompts) !<(prompt:mcp vase))
+            %add-resource  !(~(has in resources) !<(resource:mcp vase))
+            %add-template  !(~(has in templates) !<(template:resource:mcp vase))
+          ==
+        :-  ?.  changed
+              ~
+            (broadcast-list-changed bowl sse-sessions notif)
         ?-  mark
           %add-tool
             =/  new=tool:mcp  !<(tool:mcp vase)
@@ -588,7 +638,7 @@
                          ~(tap in prompts)
                        |=  old=prompt:mcp
                        ^-  (unit prompt:mcp)
-                       ?:  =(title.new title.old)
+                       ?:  =(name.new name.old)
                          ~
                        `old
             ==
@@ -725,8 +775,14 @@
         ?~  get-session=(get-header:http 'mcp-session-id' header-list.request.req)
           eyre-id
         u.get-session
+      ::  ping the notification stream on a timer; without a keepalive
+      ::  an idle GET stream drops after ~45s and clients miss
+      ::  list_changed notifications sent between reconnects
+      ::
       :_  this(sse-sessions (~(put by sse-sessions) eyre-id session-id))
-      (send-sse-start eyre-id)
+      %+  weld
+        (send-sse-start eyre-id)
+      ~[(set-keepalive now.bowl eyre-id)]
     ::
         %'DELETE'
       [(simple-response eyre-id 405 ~[['allow' 'GET, POST']]) this]
