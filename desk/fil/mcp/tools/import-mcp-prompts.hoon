@@ -25,29 +25,23 @@
       ^-  (unit dude:gall)
       ?.  live
         ~
-      =/  result=(each * (list tank))
-        %-  mule
-        |.  .^((list prompt:mcp) %gx /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/prompts/noun)
-      ?.  -.result
-        ~
-      ?~  ;;((list prompt:mcp) p.result)
-        ~
       `dude
-    ;<  ~  bind:m
-      %-  send-raw-cards:io
-      %+  turn  agents
-      |=  =dude:gall
-      ^-  card:agent:gall
-      [%pass /import-prompts %agent [our.bowl %mcp-server] %poke %import-prompts !>(dude)]
-    =/  take-acks
+    ::  A failed Gall scry cannot be softened with +mule. Ask
+    ::  %mcp-server to try each live agent and ignore poke nacks from
+    ::  agents that do not expose MCP prompts.
+    =/  import-all
       |=  remaining=(list dude:gall)
       =/  am  (strand:spider ,~)
       ^-  form:am
       ?~  remaining
         (pure:am ~)
-      ;<  ~  bind:am  (take-poke-ack:io /import-prompts)
+      ;<  ~  bind:am
+        %:  raw-poke:io
+            [our.bowl %mcp-server]
+            [%import-prompts !>(i.remaining)]
+        ==
       $(remaining t.remaining)
-    ;<  ~  bind:m  (take-acks agents)
+    ;<  ~  bind:m  (import-all agents)
     ;<  after=(list prompt:mcp)  bind:m
       (scry:io (list prompt:mcp) %gx /mcp-server/mcp/prompts/noun)
     =/  added=(list prompt:mcp)
