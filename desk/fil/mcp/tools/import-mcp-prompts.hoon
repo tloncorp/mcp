@@ -25,29 +25,23 @@
       ^-  (unit dude:gall)
       ?.  live
         ~
-      =/  result=(each * (list tank))
-        %-  mule
-        |.  .^((list prompt:mcp) %gx /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/prompts/noun)
-      ?.  -.result
-        ~
-      ?~  ;;((list prompt:mcp) p.result)
-        ~
       `dude
-    ;<  ~  bind:m
-      %-  send-raw-cards:io
-      %+  turn  agents
-      |=  =dude:gall
-      ^-  card:agent:gall
-      [%pass /import-prompts %agent [our.bowl %mcp-server] %poke %import-prompts !>(dude)]
-    =/  take-acks
+    ::  A failed Gall scry cannot be softened with +mule. Ask
+    ::  %mcp-server to try each live agent and ignore poke nacks from
+    ::  agents that do not expose MCP prompts.
+    =/  import-all
       |=  remaining=(list dude:gall)
       =/  am  (strand:spider ,~)
       ^-  form:am
       ?~  remaining
         (pure:am ~)
-      ;<  ~  bind:am  (take-poke-ack:io /import-prompts)
+      ;<  ~  bind:am
+        %:  raw-poke:io
+            [our.bowl %mcp-server]
+            [%import-prompts !>(i.remaining)]
+        ==
       $(remaining t.remaining)
-    ;<  ~  bind:m  (take-acks agents)
+    ;<  ~  bind:m  (import-all agents)
     ;<  after=(list prompt:mcp)  bind:m
       (scry:io (list prompt:mcp) %gx /mcp-server/mcp/prompts/noun)
     =/  added=(list prompt:mcp)
@@ -56,13 +50,29 @@
       ^-  (unit prompt:mcp)
       ?:  %+  lien  before
           |=  old=prompt:mcp
-          =(title.new title.old)
+          =(name.new name.old)
+        ~
+      `new
+    ::
+    ::  refreshed: same name as before, but the entry changed
+    =/  refreshed=(list prompt:mcp)
+      %+  murn  after
+      |=  new=prompt:mcp
+      ^-  (unit prompt:mcp)
+      ?.  %+  lien  before
+          |=  old=prompt:mcp
+          &(=(name.new name.old) !=(new old))
         ~
       `new
     %-  pure:m
     !>  ^-  response:tool:mcp
     :-  %result
     :-  %structured
-    %-  frond:enjs:format
-    [%imported-prompts a+(turn added |=(=prompt:mcp s+name.prompt))]
+    %-  pairs:enjs:format
+    %-  zing
+    :~  :~  [%imported-prompts a+(turn added |=(=prompt:mcp s+name.prompt))]
+        ==
+        ?~  refreshed  ~
+        :~  [%refreshed-prompts a+(turn refreshed |=(=prompt:mcp s+name.prompt))]
+    ==  ==
 ==

@@ -25,29 +25,23 @@
       ^-  (unit dude:gall)
       ?.  live
         ~
-      =/  result=(each * (list tank))
-        %-  mule
-        |.  .^((list tool:mcp) %gx /(scot %p our.bowl)/[dude]/(scot %da now.bowl)/mcp/tools/noun)
-      ?.  -.result
-        ~
-      ?~  ;;((list tool:mcp) p.result)
-        ~
       `dude
-    ;<  ~  bind:m
-      %-  send-raw-cards:io
-      %+  turn  agents
-      |=  =dude:gall
-      ^-  card:agent:gall
-      [%pass /import-tools %agent [our.bowl %mcp-server] %poke %import-tools !>(dude)]
-    =/  take-acks
+    ::  A failed Gall scry cannot be softened with +mule. Ask
+    ::  %mcp-server to try each live agent and ignore poke nacks from
+    ::  agents that do not expose MCP tools.
+    =/  import-all
       |=  remaining=(list dude:gall)
       =/  am  (strand:spider ,~)
       ^-  form:am
       ?~  remaining
         (pure:am ~)
-      ;<  ~  bind:am  (take-poke-ack:io /import-tools)
+      ;<  ~  bind:am
+        %:  raw-poke:io
+            [our.bowl %mcp-server]
+            [%import-tools !>(i.remaining)]
+        ==
       $(remaining t.remaining)
-    ;<  ~  bind:m  (take-acks agents)
+    ;<  ~  bind:m  (import-all agents)
     ;<  after=(list tool:mcp)  bind:m
       (scry:io (list tool:mcp) %gx /mcp-server/mcp/tools/noun)
     =/  added=(list tool:mcp)
@@ -59,10 +53,26 @@
           =(name.new name.old)
         ~
       `new
+    ::
+    ::  refreshed: same name as before, but the entry changed
+    =/  refreshed=(list tool:mcp)
+      %+  murn  after
+      |=  new=tool:mcp
+      ^-  (unit tool:mcp)
+      ?.  %+  lien  before
+          |=  old=tool:mcp
+          &(=(name.new name.old) !=(new old))
+        ~
+      `new
     %-  pure:m
     !>  ^-  response:tool:mcp
     :-  %result
     :-  %structured
-    %-  frond:enjs:format
-    [%imported-tools a+(turn added |=(=tool:mcp s+name.tool))]
+    %-  pairs:enjs:format
+    %-  zing
+    :~  :~  [%imported-tools a+(turn added |=(=tool:mcp s+name.tool))]
+        ==
+        ?~  refreshed  ~
+        :~  [%refreshed-tools a+(turn refreshed |=(=tool:mcp s+name.tool))]
+    ==  ==
 ==
