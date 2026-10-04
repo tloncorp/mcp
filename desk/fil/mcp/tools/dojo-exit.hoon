@@ -17,8 +17,8 @@
       (send-raw-card:io [%pass /dojo-exit %arvo %d %belt [%ret ~]])
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text '|exit entered in the Dojo']
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text '|exit entered in the Dojo']
+        ==
 ==

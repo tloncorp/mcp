@@ -56,32 +56,32 @@
     ?.  ?=([@ @ *] pax)
       %-  pure:m
       !>  ^-  response:tool:mcp
-      :+  %error
-        'filepath needs at least two components, ending in the mark (e.g. /desk/bill)'
-      ~
+          :+  %error
+            'filepath needs at least two components, ending in the mark (e.g. /desk/bill)'
+          ~
     ?.  (~(has in .^((set desk) %cd own)) des)
       %-  pure:m
       !>  ^-  response:tool:mcp
-      [%error (crip "no such desk: %{(trip des)}") ~]
+          [%error (crip "no such desk: %{(trip des)}") ~]
     =/  mar=mark  (rear pax)
     ?.  .^(? %cu (weld bek /mar/[mar]/hoon))
       %-  pure:m
       !>  ^-  response:tool:mcp
-      [%error (crip "desk %{(trip des)} has no /mar/{(trip mar)}/hoon") ~]
+          [%error (crip "desk %{(trip des)} has no /mar/{(trip mar)}/hoon") ~]
     ::  convert text -> %mime -> target mark, the way a commit would
     ::
     =/  =tube:clay  .^(tube:clay %cc (weld bek /mime/[mar]))
     =/  vax=vase  (tube !>(`mime`[/text/plain (as-octs:mimes:html p.u.cot)]))
     ;<  ~  bind:m
       %:  send-raw-card:io
-          %pass   /insert-file
-          %arvo   %c  %info
-          [des %& [pax %ins mar vax]~]
+        %pass  /insert-file
+        %arvo  %c  %info
+        [des %& [pax %ins mar vax]~]
       ==
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text (crip "Inserted {(spud pax)} into desk %{(trip des)}")]
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text (crip "Inserted {(spud pax)} into desk %{(trip des)}")]
+        ==
 ==

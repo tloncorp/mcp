@@ -16,18 +16,18 @@
     ?+  fine-path  ~
     ::  fine://~ship/c/x/revision/desk/path
         [%c %x @t @t [@t *]]
-      =/  revision=@t  i.t.t.fine-path
-      =/  desk=@t  i.t.t.t.fine-path
-      =/  tail=path  t.t.t.t.fine-path
+      =*  revision  i.t.t.fine-path
+      =*  desk  i.t.t.t.fine-path
+      =*  tail  t.t.t.t.fine-path
       =/  case-knot=(unit @ta)  (parse-case revision)
       ?~  case-knot
         ~
       `(welp /c/x/[u.case-knot]/[desk] tail)
     ::  fine://~ship/g/x/revision/agent//1/path
         [%g %x @t @t %$ %1 [@t *]]
-      =/  revision=@t  i.t.t.fine-path
-      =/  agent=@t  i.t.t.t.fine-path
-      =/  spur=path  t.t.t.t.t.t.fine-path
+      =*  revision  i.t.t.fine-path
+      =*  agent  i.t.t.t.fine-path
+      =*  spur  t.t.t.t.t.t.fine-path
       =/  case-knot=(unit @ta)  (parse-case revision)
       ?~  case-knot
         ~
@@ -71,7 +71,7 @@
   ?~  off
     (flop [`^tape`tape `(list ^tape)`res])
   %=  $
-    res   [(scag `@ud`(need off) `^tape`tape) res]
+    res  [(scag `@ud`(need off) `^tape`tape) res]
     tape  (slag +(`@ud`(need off)) `^tape`tape)
   ==
 --

@@ -134,17 +134,17 @@
     ==
   ::
   ++  argument
-     =<  argument
-     |%
-     +$  name  @t
-     ::
-     +$  argument
-       $+  mcp-prompt-argument
-       $:  =name
-           desc=@t
-           required=?
-       ==
-     --
+    =<  argument
+    |%
+    +$  name  @t
+    ::
+    +$  argument
+      $+  mcp-prompt-argument
+      $:  =name
+          desc=@t
+          required=?
+      ==
+    --
   ::
   +$  icon
     $+  mcp-prompt-icon

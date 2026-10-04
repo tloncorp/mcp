@@ -20,10 +20,10 @@
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
-    =/  nam=(unit argument:tool:mcp)      (~(get by args) 'name')
-    =/  des=(unit argument:tool:mcp)      (~(get by args) 'desc')
+    =/  nam=(unit argument:tool:mcp)  (~(get by args) 'name')
+    =/  des=(unit argument:tool:mcp)  (~(get by args) 'desc')
     =/  req-arg=(unit argument:tool:mcp)  (~(get by args) 'required')
-    =/  ted=(unit argument:tool:mcp)      (~(get by args) 'thread-builder')
+    =/  ted=(unit argument:tool:mcp)  (~(get by args) 'thread-builder')
     ?~  nam  (pure:m !>([%error %missing-tool-name ~]))
     ?>  ?=([%string @t] u.nam)
     ?~  des  (pure:m !>([%error %missing-tool-description ~]))
@@ -49,7 +49,7 @@
       |=  [name=@t =argument:tool:mcp]
       ^-  [name:parameter:tool:mcp def:parameter:tool:mcp]
       ?>  ?=([%object *] argument)
-      =/  typ-arg=(unit argument:tool:mcp)   (~(get by p.argument) 'type')
+      =/  typ-arg=(unit argument:tool:mcp)  (~(get by p.argument) 'type')
       =/  desc-arg=(unit argument:tool:mcp)  (~(get by p.argument) 'description')
       ?~  typ-arg
         ~|(%missing-parameter-type !!)
@@ -71,16 +71,16 @@
       (ream p.u.ted)
     ;<  ~  bind:m
       %-  send-raw-card:io
-      :*  %pass   /add-tool
+      :*  %pass  /add-tool
           %agent  [our %mcp-server]
-          %poke   %add-tool
+          %poke  %add-tool
           !>([p.u.nam p.u.des par req !<(thread-builder:tool:mcp vax)])
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-tool)
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text 'Tool added!']
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text 'Tool added!']
+        ==
 ==

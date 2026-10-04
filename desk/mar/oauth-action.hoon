@@ -1,6 +1,7 @@
 ::  oauth-action: mark for oauth agent actions
 ::
 /-  oauth
+/+  oauth-json
 |_  act=action:oauth
 ++  grow
   |%
@@ -17,91 +18,22 @@
     ?>  ?=(%o -.jon)
     ?+  typ  !!
         %'add-provider'
-      =/  f
-        %-  ot
-        :~  id+so
-            auth-url+so
-            token-url+so
-            revoke-url+(mu so)
-            client-id+so
-            client-secret+so
-            redirect-uri+so
-            scopes+so
-        ==
-      =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
-        (f jon)
-      =/  token-resource=(unit @t)
-        =/  val=(unit json)  (~(get by p.jon) 'token-resource')
-        ?~  val  ~
-        ?.  ?=(%s -.u.val)  ~
-        ?:  =('' p.u.val)  ~
-        `p.u.val
-      =/  token-auth=token-auth-mode:oauth
-        =/  val=(unit json)  (~(get by p.jon) 'token-auth')
-        ?~  val  %basic
-        ?.  ?=(%s -.u.val)  %basic
-        ?:  =('body' p.u.val)  %body
-        %basic
-      [%add-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes token-resource token-auth]]
+      =/  parsed=[id=@t config=provider-config:oauth]
+        (parse-provider-config:oauth-json jon)
+      [%add-provider `@tas`id.parsed config.parsed]
     ::
         %'remove-provider'
       [%remove-provider `@tas`((ot ~[id+so]) jon)]
     ::
         %'update-provider'
-      =/  f
-        %-  ot
-        :~  id+so
-            auth-url+so
-            token-url+so
-            revoke-url+(mu so)
-            client-id+so
-            client-secret+so
-            redirect-uri+so
-            scopes+so
-        ==
-      =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
-        (f jon)
-      =/  token-resource=(unit @t)
-        =/  val=(unit json)  (~(get by p.jon) 'token-resource')
-        ?~  val  ~
-        ?.  ?=(%s -.u.val)  ~
-        ?:  =('' p.u.val)  ~
-        `p.u.val
-      =/  token-auth=token-auth-mode:oauth
-        =/  val=(unit json)  (~(get by p.jon) 'token-auth')
-        ?~  val  %basic
-        ?.  ?=(%s -.u.val)  %basic
-        ?:  =('body' p.u.val)  %body
-        %basic
-      [%update-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes token-resource token-auth]]
+      =/  parsed=[id=@t config=provider-config:oauth]
+        (parse-provider-config:oauth-json jon)
+      [%update-provider `@tas`id.parsed config.parsed]
     ::
         %'config-provider'
-      =/  f
-        %-  ot
-        :~  id+so
-            auth-url+so
-            token-url+so
-            revoke-url+(mu so)
-            client-id+so
-            client-secret+so
-            redirect-uri+so
-            scopes+so
-        ==
-      =/  [id=@t auth-url=@t token-url=@t revoke-url=(unit @t) client-id=@t client-secret=@t redirect-uri=@t scopes=@t]
-        (f jon)
-      =/  token-resource=(unit @t)
-        =/  val=(unit json)  (~(get by p.jon) 'token-resource')
-        ?~  val  ~
-        ?.  ?=(%s -.u.val)  ~
-        ?:  =('' p.u.val)  ~
-        `p.u.val
-      =/  token-auth=token-auth-mode:oauth
-        =/  val=(unit json)  (~(get by p.jon) 'token-auth')
-        ?~  val  %basic
-        ?.  ?=(%s -.u.val)  %basic
-        ?:  =('body' p.u.val)  %body
-        %basic
-      [%config-provider `@tas`id [auth-url token-url revoke-url client-id client-secret redirect-uri scopes token-resource token-auth]]
+      =/  parsed=[id=@t config=provider-config:oauth]
+        (parse-provider-config:oauth-json jon)
+      [%config-provider `@tas`id.parsed config.parsed]
     ::
         %'connect'
       [%connect `@tas`((ot ~[id+so]) jon)]

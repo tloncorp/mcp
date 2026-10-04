@@ -5,7 +5,7 @@
 ::
 +$  glob  (map path mime)
 ::
-+$  url   cord
++$  url  cord
 ::  $glob-location: How to retrieve a glob
 ::
 +$  glob-reference
@@ -26,13 +26,13 @@
 +$  chad
   $~  [%install ~]
   $%  :: Done
-      [%glob =glob]
-      [%site ~]
-      :: Waiting
-      [%install ~]
-      [%suspend glob=(unit glob)]
-      :: Error
-      [%hung err=cord]
+    [%glob =glob]
+    [%site ~]
+    :: Waiting
+    [%install ~]
+    [%suspend glob=(unit glob)]
+    :: Error
+    [%hung err=cord]
   ==
 ::
 ::  $charge: A realized $docket

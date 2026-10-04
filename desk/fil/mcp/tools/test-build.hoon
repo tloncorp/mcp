@@ -1,18 +1,18 @@
 /-  mcp, spider
 /+  db=builder, io=strandio
 =>
-|%
-++  print-tang
-  |=  =tang
-  ^-  @t
-  %-  of-wain:format
-  %-  zing
-  %+  turn  tang
-  |=  =tank
-  %+  turn  (wash [0 80] tank)
-  |=  =tape
-  (crip tape)
---
+  |%
+  ++  print-tang
+    |=  =tang
+    ^-  @t
+    %-  of-wain:format
+    %-  zing
+    %+  turn  tang
+    |=  =tank
+    %+  turn  (wash [0 80] tank)
+    |=  =tape
+    (crip tape)
+  --
 ::
 ^-  tool:mcp
 :*  'mcp/test-build'
@@ -52,17 +52,17 @@
     =/  result=(each vase tang)
       (~(build db [our.bowl desk now.bowl]) target)
     ?-  -.result
-      %|
-        %-  pure:m
-        !>  ^-  response:tool:mcp
-        [%error (print-tang p.result) ~]
-      %&
-        %-  pure:m
-        !>  ^-  response:tool:mcp
-        :-  %result
-        :-  %unstructured
-        :~  :-  %text
-            (crip "Built {(spud target)} on %{(trip desk)} successfully.")
-        ==
+        %|
+      %-  pure:m
+      !>  ^-  response:tool:mcp
+          [%error (print-tang p.result) ~]
+        %&
+      %-  pure:m
+      !>  ^-  response:tool:mcp
+          :-  %result
+          :-  %unstructured
+          :~  :-  %text
+              (crip "Built {(spud target)} on %{(trip desk)} successfully.")
+          ==
     ==
 ==

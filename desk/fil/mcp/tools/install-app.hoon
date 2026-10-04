@@ -39,14 +39,14 @@
     ?>  ?=([%string @t] u.ship-arg)
     ;<  ~  bind:m
       %:  poke-our:io
-          %hood
-          %kiln-install
-          !>([dek (@p (slav %p p.u.ship-arg)) dek])
+        %hood
+        %kiln-install
+        !>([dek (@p (slav %p p.u.ship-arg)) dek])
       ==
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text (crip "Installing %{(trip dek)} from {(trip p.u.ship-arg)}.")]
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text (crip "Installing %{(trip dek)} from {(trip p.u.ship-arg)}.")]
+        ==
 ==

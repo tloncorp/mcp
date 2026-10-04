@@ -5,7 +5,7 @@
   ++  make-response
     |=  res=response
     ^-  json
-    ?-    -.res
+    ?-  -.res
         %result
       %-  pairs:enjs:format
       :~  ['id' n+id.res]
@@ -36,11 +36,11 @@
     |%
     ++  code
       |%
-      ++  parse-error       ~.-32700
-      ++  invalid-request   ~.-32600
+      ++  parse-error  ~.-32700
+      ++  invalid-request  ~.-32600
       ++  method-not-found  ~.-32601
-      ++  invalid-params    ~.-32602
-      ++  internal-error    ~.-32603
+      ++  invalid-params  ~.-32602
+      ++  internal-error  ~.-32603
       --
     ++  parse
       |=  [id=@ta message=@t data=(unit json)]

@@ -58,12 +58,12 @@
     =.  draft
       ?-  -.clause
         %title  draft(title `title.clause)
-        %info   draft(info `info.clause)
+        %info  draft(info `info.clause)
         %color  draft(color `color.clause)
-        %glob-http   draft(glob-http `[url hash]:clause)
-        %glob-ames   draft(glob-ames `[ship hash]:clause)
-        %base   draft(base `base.clause)
-        %site   draft(site `path.clause)
+        %glob-http  draft(glob-http `[url hash]:clause)
+        %glob-ames  draft(glob-ames `[ship hash]:clause)
+        %base  draft(base `base.clause)
+        %site  draft(site `path.clause)
         %image  draft(image `url.clause)
         %version  draft(version `version.clause)
         %website  draft(website `website.clause)
@@ -84,12 +84,12 @@
         ==
         ?~  image.d  ~  ~[image+u.image.d]
         ?:  ?=(%site -.href.d)  ~[site+path.href.d]
-        =/  ref=glob-reference  glob-reference.href.d
+        =*  ref  glob-reference.href.d
         :~  base+base.href.d
             ?-  -.location.ref
               %http  [%glob-http url.location.ref hash.ref]
               %ames  [%glob-ames ship.location.ref hash.ref]
-    ==  ==  ==
+            ==  ==  ==
   ::
   ++  spit-clause
     |=  =clause
@@ -97,7 +97,7 @@
     %+  weld  "  {(trip -.clause)}+"
     ?+  -.clause  "'{(trip +.clause)}'"
       %color  (scow %ux color.clause)
-      %site   (spud path.clause)
+      %site  (spud path.clause)
     ::
         %glob-http
       "['{(trip url.clause)}' {(scow %uv hash.clause)}]"
@@ -114,9 +114,9 @@
     |=  dock=docket
     ^-  tape
     ;:  welp
-      ":~\0a"
-      `tape`(zing (join "\0a" (turn (to-clauses dock) spit-clause)))
-      "\0a=="
+        ":~\0a"
+        `tape`(zing (join "\0a" (turn (to-clauses dock) spit-clause)))
+        "\0a=="
     ==
   --
 ::
@@ -167,8 +167,8 @@
   ++  href
     |=  h=^href
     %+  frond  -.h
-    ?-    -.h
-        %site  s+(spat path.h)
+    ?-  -.h
+      %site  s+(spat path.h)
         %glob
       %-  pairs
       :~  base+s+base.h

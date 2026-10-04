@@ -22,8 +22,8 @@
               "/"
             ::  normalise e.g. /===/ to /=/=/=/
             ::  works for any combination of values and =
-            %^    replace
-                "=="
+            %^  replace
+              "=="
               "=/="
             ::  remove beam:/, leaving / prefix on the tape
             (oust [0 7] (trip cord))
@@ -67,7 +67,7 @@
     =/  off  (find sep tape)
     ?~  off  (flop [`^tape`tape `(list ^tape)`res])
     %=  $
-      res   [(scag `@ud`(need off) `^tape`tape) res]
+      res  [(scag `@ud`(need off) `^tape`tape) res]
       tape  (slag +(`@ud`(need off)) `^tape`tape)
     ==
   --

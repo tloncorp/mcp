@@ -20,12 +20,12 @@
 ^-  agent:gall
 |_  =bowl:gall
 +*  this  .
-    def   ~(. (default-agent this %|) bowl)
+    def  ~(. (default-agent this %|) bowl)
 ++  on-init
   ^-  (quip card _this)
   `this
 ::
-++  on-save   !>(state)
+++  on-save  !>(state)
 ++  on-load
   |=  old=vase
   ^-  (quip card _this)
@@ -60,10 +60,10 @@
     %-  some
     :-  %json
     !>  ^-  json
-    %-  frond:enjs:format
-    :-  'values'
-    :-  %a
-    (turn values |=(val=@ n+(scot %ud val)))
+        %-  frond:enjs:format
+        :-  'values'
+        :-  %a
+        (turn values |=(val=@ n+(scot %ud val)))
   ::
   ::  .^(json %gx /=/this-desk/=/value/0/json)
       [%x %value pos=@ta ~]
@@ -71,10 +71,10 @@
     %-  some
     :-  %json
     !>  ^-  json
-    %-  frond:enjs:format
-    :-  'value'
-    :-  %n
-    (scot %ud (snag (slav %ud pos.pole) values))
+        %-  frond:enjs:format
+        :-  'value'
+        :-  %n
+        (scot %ud (snag (slav %ud pos.pole) values))
   ==
 ::
 ++  on-watch
@@ -87,8 +87,8 @@
     `this
   ==
 ::
-++  on-arvo   on-arvo:def
+++  on-arvo  on-arvo:def
 ++  on-leave  on-leave:def
 ++  on-agent  on-agent:def
-++  on-fail   on-fail:def
+++  on-fail  on-fail:def
 --

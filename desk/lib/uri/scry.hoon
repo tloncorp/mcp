@@ -8,7 +8,7 @@
     crip
   ?~  parts
     ~
-  =/  care=@t               i.parts
+  =/  care=@t  i.parts
   =/  after-care=(list @t)  t.parts
   ?~  after-care
     ?:  =(%'cd' care)
@@ -66,7 +66,7 @@
   ?~  off
     (flop [`^tape`tape `(list ^tape)`res])
   %=  $
-    res   [(scag `@ud`(need off) `^tape`tape) res]
+    res  [(scag `@ud`(need off) `^tape`tape) res]
     tape  (slag +(`@ud`(need off)) `^tape`tape)
   ==
 --
