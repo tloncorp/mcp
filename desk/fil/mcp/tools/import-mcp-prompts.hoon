@@ -37,8 +37,8 @@
         (pure:am ~)
       ;<  ~  bind:am
         %:  raw-poke:io
-            [our.bowl %mcp-server]
-            [%import-prompts !>(i.remaining)]
+          [our.bowl %mcp-server]
+          [%import-prompts !>(i.remaining)]
         ==
       $(remaining t.remaining)
     ;<  ~  bind:m  (import-all agents)
@@ -66,13 +66,13 @@
       `new
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %structured
-    %-  pairs:enjs:format
-    %-  zing
-    :~  :~  [%imported-prompts a+(turn added |=(=prompt:mcp s+name.prompt))]
-        ==
-        ?~  refreshed  ~
-        :~  [%refreshed-prompts a+(turn refreshed |=(=prompt:mcp s+name.prompt))]
-    ==  ==
+        :-  %result
+        :-  %structured
+        %-  pairs:enjs:format
+        %-  zing
+        :~  :~  [%imported-prompts a+(turn added |=(=prompt:mcp s+name.prompt))]
+            ==
+            ?~  refreshed  ~
+            :~  [%refreshed-prompts a+(turn refreshed |=(=prompt:mcp s+name.prompt))]
+            ==  ==
 ==

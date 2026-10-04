@@ -10,71 +10,71 @@
     ~['desk']
     ^-  thread-builder:tool:mcp
     =>
-    |%
-    ++  print-tang-to-wain
-      |=  =tang
-      ^-  wain
-      %-  zing
-      %+  turn
-        tang
-      |=  =tank
-      %+  turn
-        (wash [0 80] tank)
-      |=  =tape
-      (crip tape)
-    ::
-    ::  rough, heuristic, opinionated
-    ::  filter on userspace errors
-    ++  prune-err
-      |=  =tang
-      ^-  (list tank)
-      %+  murn
-        tang
-      |=  tak=tank
-      ^-  (unit tank)
-      ?+  tak
-        ::  just a cord
-        `tak
+      |%
+      ++  print-tang-to-wain
+        |=  =tang
+        ^-  wain
+        %-  zing
+        %+  turn
+          tang
+        |=  =tank
+        %+  turn
+          (wash [0 80] tank)
+        |=  =tape
+        (crip tape)
+      ::
+      ::  rough, heuristic, opinionated
+      ::  filter on userspace errors
+      ++  prune-err
+        |=  =tang
+        ^-  (list tank)
+        %+  murn
+          tang
+        |=  tak=tank
+        ^-  (unit tank)
+        ?+  tak
+          ::  just a cord
+          `tak
       ::
           [%leaf *]  ?~(p.tak ~ `[%leaf p.tak])
       ::
           [%palm *]  ?~(q.tak ~ `[%palm p.tak (prune-err q.tak)])
+        ::
+            [%rose *]
+          ?~  q.tak
+            ~
+          ?:  ?|  =(i.q.tak [%leaf "sys"])
+                  =(p.tak [":" "" ""])
+              ==
+            ~
+          `[%rose p.tak (prune-err q.tak)]
+        ==
       ::
-          [%rose *]
-        ?~  q.tak
-          ~
-        ?:  ?|  =(i.q.tak [%leaf "sys"])
-                =(p.tak [":" "" ""])
-            ==
-          ~
-        `[%rose p.tak (prune-err q.tak)]
-      ==
-    ::
-    ++  safe-set-timeout
-      |*  computation-result=mold
-      =/  m  (strand ,computation-result)
-      |=  [time=@dr computation=form:m]
-      ^-  form:m
-      ;<  now=@da  bind:m  get-time:io
-      =/  when  (add now time)
-      =/  =card:agent:gall
-        [%pass /timeout/(scot %da when) %arvo %b %wait when]
-      ;<  ~  bind:m  (send-raw-card:io card)
-      |=  tin=strand-input:strand
-      =*  loop  $
-      ?:  ?&  ?=([~ %sign [%timeout @ ~] %behn %wake *] in.tin)
-              =((scot %da when) i.t.wire.u.in.tin)
-          ==
-        `[%done ~]
-      =/  c-res  (computation tin)
-      ?:  ?=(%cont -.next.c-res)
-        c-res(self.next ..loop(computation self.next.c-res))
-      ?:  ?=(%done -.next.c-res)
+      ++  safe-set-timeout
+        |*  computation-result=mold
+        =/  m  (strand ,computation-result)
+        |=  [time=@dr computation=form:m]
+        ^-  form:m
+        ;<  now=@da  bind:m  get-time:io
+        =/  when  (add now time)
         =/  =card:agent:gall
-          [%pass /timeout/(scot %da when) %arvo %b %rest when]
-        c-res(cards [card cards.c-res])
-      c-res
-    --
+          [%pass /timeout/(scot %da when) %arvo %b %wait when]
+        ;<  ~  bind:m  (send-raw-card:io card)
+        |=  tin=strand-input:strand
+        =*  loop  $
+        ?:  ?&  ?=([~ %sign [%timeout @ ~] %behn %wake *] in.tin)
+                =((scot %da when) i.t.wire.u.in.tin)
+            ==
+          `[%done ~]
+        =/  c-res  (computation tin)
+        ?:  ?=(%cont -.next.c-res)
+          c-res(self.next ..loop(computation self.next.c-res))
+        ?:  ?=(%done -.next.c-res)
+          =/  =card:agent:gall
+            [%pass /timeout/(scot %da when) %arvo %b %rest when]
+          c-res(cards [card cards.c-res])
+        c-res
+      --
     |=  args=(map name:parameter:tool:mcp argument:tool:mcp)
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
@@ -86,8 +86,8 @@
     ;<  bo1=bowl:rand  bind:m  get-bowl:io
     =/  old-files=(list spur)
       .^  (list spur)
-          %ct
-          /(scot %p our.bo1)/[p.u.dek]/(scot %da now.bo1)
+        %ct
+        /(scot %p our.bo1)/[p.u.dek]/(scot %da now.bo1)
       ==
     =/  old-hashes=(map spur @uvI)
       %-  my
@@ -97,10 +97,10 @@
       ^-  (pair ^spur @uvI)
       :-  spur
       .^  @uvI
-          %cz
-          %+  welp
-            /(scot %p our.bo1)/[p.u.dek]/(scot %da now.bo1)
-          spur
+        %cz
+        %+  welp
+          /(scot %p our.bo1)/[p.u.dek]/(scot %da now.bo1)
+        spur
       ==
     ::  every %pass below must be undone on every exit path. spider
     ::  only cleans up gall subscriptions when a thread ends, so a
@@ -128,7 +128,7 @@
       =/  m  (strand ,(unit sign-arvo))
       ^-  form:m
       |=  tin=strand-input:strand
-      ?+    in.tin  `[%skip ~]
+      ?+  in.tin  `[%skip ~]
           ~
         `[%wait ~]
       ::
@@ -148,7 +148,7 @@
       (pure:m !>([%error %no-changes-to-commit ~]))
     ?>  ?=([%dill %logs *] u.maybe-dill-sign)
     =/  [%dill %logs =told:dill]  u.maybe-dill-sign
-    ?-    told
+    ?-  told
         [%crud *]
       ::  build failed: no new revision, %next would hang around
       ::
@@ -157,30 +157,30 @@
         (print-tang-to-wain (prune-err q.told))
       %-  pure:m
       !>  ^-  response:tool:mcp
-      :-  %error
-      :-  (of-wain:format error-lines)
-      %-  some
-      %-  frond:enjs:format
-      :-  'errors'
-      :-  %a
-      %+  turn
-        error-lines
-      |=  =cord
-      s+cord
+          :-  %error
+          :-  (of-wain:format error-lines)
+          %-  some
+          %-  frond:enjs:format
+          :-  'errors'
+          :-  %a
+          %+  turn
+            error-lines
+          |=  =cord
+          s+cord
     ::
         [%talk *]
       ;<  ~  bind:m  (send-raw-card:io unwatch-desk)
       %-  pure:m
       !>  ^-  response:tool:mcp
-      :-  %result
-      :-  %structured
-      %-  frond:enjs:format
-      :-  'lines'
-      :-  %a
-      %+  turn
-        (print-tang-to-wain p.told)
-      |=  =cord
-      s+cord
+          :-  %result
+          :-  %structured
+          %-  frond:enjs:format
+          :-  'lines'
+          :-  %a
+          %+  turn
+            (print-tang-to-wain p.told)
+          |=  =cord
+          s+cord
     ::
         [%text *]
       ;<  bo2=bowl:rand  bind:m  get-bowl:io
@@ -188,7 +188,7 @@
         =/  m  (strand ,sign-arvo)
         ^-  form:m
         |=  tin=strand-input:strand
-        ?+    in.tin  `[%skip ~]
+        ?+  in.tin  `[%skip ~]
             ~
           `[%wait ~]
         ::
@@ -200,8 +200,8 @@
       ?>  ?=([%clay %writ *] sign-arvo)
       =/  new-files=(list spur)
         .^  (list spur)
-            %ct
-            /(scot %p our.bo2)/[p.u.dek]/(scot %da now.bo2)
+          %ct
+          /(scot %p our.bo2)/[p.u.dek]/(scot %da now.bo2)
         ==
       =/  new-hashes=(map spur @uvI)
         %-  my
@@ -211,10 +211,10 @@
         ^-  (pair ^spur @uvI)
         :-  spur
         .^  @uvI
-            %cz
-            %+  welp
-              /(scot %p our.bo2)/[p.u.dek]/(scot %da now.bo2)
-            spur
+          %cz
+          %+  welp
+            /(scot %p our.bo2)/[p.u.dek]/(scot %da now.bo2)
+          spur
         ==
       =/  modified=(list spur)
         %+  murn
@@ -244,12 +244,12 @@
         `spur
       %-  pure:m
       !>  ^-  response:tool:mcp
-      :-  %result
-      :-  %structured
-      %-  pairs:enjs:format
-      :~  ['added' [%a ?~(added ~ (turn added |=(=spur s+(spat spur))))]]
-          ['deleted' [%a ?~(deleted ~ (turn deleted |=(=spur s+(spat spur))))]]
-          ['modified' [%a ?~(modified ~ (turn modified |=(=spur s+(spat spur))))]]
-      ==
+          :-  %result
+          :-  %structured
+          %-  pairs:enjs:format
+          :~  ['added' [%a ?~(added ~ (turn added |=(=spur s+(spat spur))))]]
+              ['deleted' [%a ?~(deleted ~ (turn deleted |=(=spur s+(spat spur))))]]
+              ['modified' [%a ?~(modified ~ (turn modified |=(=spur s+(spat spur))))]]
+          ==
     ==
 ==

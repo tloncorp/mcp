@@ -523,15 +523,15 @@
   =/  torn=(list @tas)  (fall (rush suffix parser) ~[suffix])
   %-  flop
   |-  ^-  (list (list @tas))
-  ?~  torn  ~
-  ?:  ?=([@ ~] torn)
-    ~[torn]
-  %-  zing
-  %+  turn  $(torn t.torn)
-  |=  s=(list @tas)
-  ^-  (list (list @tas))
-  ?~  s  ~
-  ~[[i.torn s] [(crip "{(trip i.torn)}-{(trip i.s)}") t.s]]
+      ?~  torn  ~
+      ?:  ?=([@ ~] torn)
+        ~[torn]
+      %-  zing
+      %+  turn  $(torn t.torn)
+      |=  s=(list @tas)
+      ^-  (list (list @tas))
+      ?~  s  ~
+      ~[[i.torn s] [(crip "{(trip i.torn)}-{(trip i.s)}") t.s]]
 ::
 ::  +parse-pile: Clay's prelude parser, copied without Ford/cache state.
 ::
@@ -539,7 +539,8 @@
   |=  [target=path source=@t]
   ^-  (each pile:clay tang)
   =/  [=hair result=(unit [parsed=pile:clay =nail])]
-    %-  road  |.
+    %-  road
+    |.
     =>  [pile-rule=pile-rule target=target source=source trip=trip]
     ((pile-rule target) [1 1] (trip source))
   ?^  result  [%.y parsed.u.result]
@@ -547,11 +548,11 @@
   =/  column=@ud  q.hair
   :-  %.n
   :~  leaf+"syntax error at [{<line>} {<column>}] in {<target>}"
-    =/  lines=wain  (to-wain:format source)
-    ?:  (gth line (lent lines))
-      '<<end of file>>'
-    (snag (dec line) lines)
-    leaf+(runt [(dec column) '-'] "^")
+      =/  lines=wain  (to-wain:format source)
+      ?:  (gth line (lent lines))
+        '<<end of file>>'
+      (snag (dec line) lines)
+      leaf+(runt [(dec column) '-'] "^")
   ==
 ::
 ++  pile-rule
@@ -565,41 +566,41 @@
     ::
     ;~(plug gay (punt ;~(plug fas wut gap dem gap)))
   |^
-  ;~  plug
-    %+  cook  (bake zing (list (list taut)))
-    %+  rune  hep
-    (most ;~(plug com gaw) taut-rule)
-  ::
-    %+  cook  (bake zing (list (list taut)))
-    %+  rune  lus
-    (most ;~(plug com gaw) taut-rule)
-  ::
-    %+  rune  tis
-    ;~(plug sym ;~(pfix gap stap))
-  ::
-    %+  rune  sig
-    ;~((glue gap) sym wyde:vast stap)
-  ::
-    %+  rune  cen
-    ;~(plug sym ;~(pfix gap ;~(pfix cen sym)))
-  ::
-    %+  rune  buc
-    ;~  (glue gap)
-      sym
-      ;~(pfix cen sym)
-      ;~(pfix cen sym)
+    ;~  plug
+        %+  cook  (bake zing (list (list taut)))
+        %+  rune  hep
+        (most ;~(plug com gaw) taut-rule)
+      ::
+        %+  cook  (bake zing (list (list taut)))
+        %+  rune  lus
+        (most ;~(plug com gaw) taut-rule)
+      ::
+        %+  rune  tis
+        ;~(plug sym ;~(pfix gap stap))
+      ::
+        %+  rune  sig
+        ;~((glue gap) sym wyde:vast stap)
+      ::
+        %+  rune  cen
+        ;~(plug sym ;~(pfix gap ;~(pfix cen sym)))
+      ::
+        %+  rune  buc
+        ;~  (glue gap)
+            sym
+            ;~(pfix cen sym)
+            ;~(pfix cen sym)
+        ==
+      ::
+        %+  rune  tar
+        ;~  (glue gap)
+            sym
+            ;~(pfix cen sym)
+            ;~(pfix stap)
+        ==
+      ::
+        %+  stag  %tssg
+        (most gap tall:(vang & pax))
     ==
-  ::
-    %+  rune  tar
-    ;~  (glue gap)
-      sym
-      ;~(pfix cen sym)
-      ;~(pfix stap)
-    ==
-  ::
-    %+  stag  %tssg
-    (most gap tall:(vang & pax))
-  ==
   ::
   ++  pant
     |*  fel=^rule
@@ -618,9 +619,9 @@
   ++  taut-rule
     %+  cook  |=(taut +<)
     ;~  pose
-      (stag ~ ;~(pfix tar sym))
-      ;~(plug (stag ~ sym) ;~(pfix tis sym))
-      (cook |=(a=term [`a a]) sym)
+        (stag ~ ;~(pfix tar sym))
+        ;~(plug (stag ~ sym) ;~(pfix tis sym))
+        (cook |=(a=term [`a a]) sym)
     ==
   --
 --

@@ -18,11 +18,11 @@
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
-    =/  nam=(unit argument:tool:mcp)          (~(get by args) 'name')
-    =/  tit=(unit argument:tool:mcp)          (~(get by args) 'title')
-    =/  des=(unit argument:tool:mcp)          (~(get by args) 'desc')
+    =/  nam=(unit argument:tool:mcp)  (~(get by args) 'name')
+    =/  tit=(unit argument:tool:mcp)  (~(get by args) 'title')
+    =/  des=(unit argument:tool:mcp)  (~(get by args) 'desc')
     =/  prompt-args=(unit argument:tool:mcp)  (~(get by args) 'arguments')
-    =/  msg=(unit argument:tool:mcp)          (~(get by args) 'messages-builder')
+    =/  msg=(unit argument:tool:mcp)  (~(get by args) 'messages-builder')
     ?~  nam  (pure:m !>([%error %missing-prompt-name ~]))
     ?>  ?=([%string @t] u.nam)
     ?~  tit  (pure:m !>([%error %missing-prompt-title ~]))
@@ -42,7 +42,7 @@
       ?>  ?=([%object *] argument)
       =/  arg-name=(unit argument:tool:mcp)  (~(get by p.argument) 'name')
       =/  arg-desc=(unit argument:tool:mcp)  (~(get by p.argument) 'description')
-      =/  arg-req=(unit argument:tool:mcp)   (~(get by p.argument) 'required')
+      =/  arg-req=(unit argument:tool:mcp)  (~(get by p.argument) 'required')
       ?~  arg-name
         ~|(%missing-argument-name !!)
       ?>  ?=([%string @t] u.arg-name)
@@ -66,23 +66,23 @@
     ;<  our=ship  bind:m  get-our:io
     ;<  ~  bind:m
       %-  send-raw-card:io
-      :*  %pass   /add-prompt
+      :*  %pass  /add-prompt
           %agent  [our %mcp-server]
-          %poke   %add-prompt
+          %poke  %add-prompt
           !>  ^-  prompt:mcp
-          :*  p.u.nam
-              p.u.tit
-              p.u.des
-              arguments
-              ~
-              !<(_messages-builder:*prompt:mcp vax)
-          ==
+              :*  p.u.nam
+                  p.u.tit
+                  p.u.des
+                  arguments
+                  ~
+                  !<(_messages-builder:*prompt:mcp vax)
+              ==
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-prompt)
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text 'Prompt added!']
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text 'Prompt added!']
+        ==
 ==

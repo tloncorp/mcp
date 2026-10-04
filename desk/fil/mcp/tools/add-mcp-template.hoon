@@ -20,13 +20,13 @@
     ^-  shed:khan
     =/  m  (strand:spider ,vase)
     ^-  form:m
-    =/  uri=(unit argument:tool:mcp)   (~(get by args) 'uri-template')
-    =/  nam=(unit argument:tool:mcp)   (~(get by args) 'name')
-    =/  tit=(unit argument:tool:mcp)   (~(get by args) 'title')
-    =/  des=(unit argument:tool:mcp)   (~(get by args) 'desc')
+    =/  uri=(unit argument:tool:mcp)  (~(get by args) 'uri-template')
+    =/  nam=(unit argument:tool:mcp)  (~(get by args) 'name')
+    =/  tit=(unit argument:tool:mcp)  (~(get by args) 'title')
+    =/  des=(unit argument:tool:mcp)  (~(get by args) 'desc')
     =/  mime=(unit argument:tool:mcp)  (~(get by args) 'mime-type')
-    =/  siz=(unit argument:tool:mcp)   (~(get by args) 'size')
-    =/  aud=(unit argument:tool:mcp)   (~(get by args) 'audience')
+    =/  siz=(unit argument:tool:mcp)  (~(get by args) 'size')
+    =/  aud=(unit argument:tool:mcp)  (~(get by args) 'audience')
     ?~  uri  (pure:m !>([%error %missing-resource-template-uri ~]))
     ?>  ?=([%string @t] u.uri)
     ?~  nam  (pure:m !>([%error %missing-resource-template-name ~]))
@@ -67,16 +67,16 @@
     ;<  our=ship  bind:m  get-our:io
     ;<  ~  bind:m
       %-  send-raw-card:io
-      :*  %pass   /add-template
+      :*  %pass  /add-template
           %agent  [our %mcp-server]
-          %poke   %add-template
+          %poke  %add-template
           !>([p.u.uri p.u.nam title desc mime-type size annotations])
       ==
     ;<  ~  bind:m  (take-poke-ack:io /add-template)
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  [%text 'Resource template added!']
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  [%text 'Resource template added!']
+        ==
 ==

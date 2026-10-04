@@ -14,7 +14,7 @@
     ?~  path
       [~ jon]
     ?@  jon  ~
-    ?+    -.jon  ~
+    ?+  -.jon  ~
         %o
       ?~  get=(~(get by p.jon) i.path)
         ~
@@ -59,7 +59,7 @@
     ?>  ?=(^ path)
     ?:  ?=([i=@ta t=~] path)
       ?@  jon  jon
-      ?+    -.jon  jon
+      ?+  -.jon  jon
           %o
         [%o p=(~(del by p.jon) i.path)]
         ::
@@ -69,7 +69,7 @@
         [%a p=(oust [u.rus 1] p.jon)]
       ==
     ?@  jon  jon
-    ?+    -.jon  jon
+    ?+  -.jon  jon
         %o
       ?~  get=(~(get by p.jon) i.path)
         jon
@@ -87,13 +87,14 @@
     |=  [=path val=json]
     ^-  json
     =-  (fall - jon)
-    %-  mole  |.
+    %-  mole
+    |.
     |-
     ^-  json
     ?>  ?=(^ path)
     ?:  ?=([i=@ta t=~] path)
       ?@  jon  jon
-      ?+    -.jon  jon
+      ?+  -.jon  jon
         %a  [%a p=(into p.jon (rash i.path dem:ag) val)]
           %o
         :: remove leading ! to allow escaping array creation
@@ -102,7 +103,7 @@
         [%o p=(~(put by p.jon) i.path val)]
       ==
     ?@  jon  jon
-    ?+    -.jon  jon
+    ?+  -.jon  jon
         %o
       :: remove leading ! to allow escaping array creation
       ::
@@ -135,4 +136,102 @@
       jon
     $(vals t.vals, jon (put path.i.vals val.i.vals))
   --
+::
+++  get-json-field
+  |=  [jon=json key=@t]
+  ^-  json
+  ?~  jon  ~
+  ?.  ?=(%o -.jon)  ~
+  (fall (~(get by p.jon) key) ~)
+::
+++  get-json-string
+  |=  [jon=json key=@t]
+  ^-  @t
+  =/  v=json  (get-json-field jon key)
+  ?~  v  ''
+  ?:  ?=(%s -.v)  p.v
+  ?:  ?=(%n -.v)  p.v
+  ?:  ?=(%b -.v)  ?:(p.v 'true' 'false')
+  ''
+::
+++  get-json-array
+  |=  [jon=json key=@t]
+  ^-  (list json)
+  =/  val=json  (get-json-field jon key)
+  ?~  val  ~
+  ?.  ?=(%a -.val)  ~
+  p.val
+::
+++  get-optional-string
+  |=  [jon=json key=@t]
+  ^-  (unit @t)
+  ?.  ?=(%o -.jon)  ~
+  =/  v=(unit json)  (~(get by p.jon) key)
+  ?~  v  ~
+  ?.  ?=(%s -.u.v)  ~
+  ?:  =('' p.u.v)  ~
+  `p.u.v
+::
+++  get-optional-tas
+  |=  [jon=json key=@t]
+  ^-  (unit @tas)
+  ?.  ?=(%o -.jon)  ~
+  =/  v=(unit json)  (~(get by p.jon) key)
+  ?~  v  ~
+  ?.  ?=(%s -.u.v)  ~
+  ?:  =('' p.u.v)  ~
+  ``@tas`p.u.v
+::
+++  json-pointer-get
+  |=  [jon=json ref=@t]
+  ^-  (unit json)
+  =/  chars=tape  (trip ref)
+  ?~  chars  ~
+  ?.  =('#' i.chars)  ~
+  =/  rest=tape  t.chars
+  ?~  rest  ~
+  ?.  =('/' i.rest)  ~
+  (json-pointer-walk jon (split-json-pointer t.rest))
+::
+++  json-pointer-walk
+  |=  [jon=json parts=(list @t)]
+  ^-  (unit json)
+  ?~  parts  `jon
+  ?~  jon  ~
+  ?.  ?=(%o -.jon)  ~
+  =/  next=(unit json)  (~(get by p.jon) i.parts)
+  ?~  next  ~
+  $(jon u.next, parts t.parts)
+::
+++  split-json-pointer
+  |=  chars=tape
+  ^-  (list @t)
+  =/  res=(list @t)  ~
+  =/  seg=tape  ~
+  |-
+  ?~  chars
+    (flop [(json-pointer-unescape (crip seg)) res])
+  ?:  =('/' i.chars)
+    $(chars `tape`t.chars, res [(json-pointer-unescape (crip seg)) res], seg ~)
+  $(chars `tape`t.chars, seg (snoc seg i.chars))
+::
+++  json-pointer-unescape
+  |=  raw=@t
+  ^-  @t
+  =/  chars=tape  (trip raw)
+  =/  out=tape  ~
+  |-
+  ?~  chars
+    (crip out)
+  =/  c=@tD  i.chars
+  ?.  =(c '~')
+    $(chars t.chars, out (snoc out c))
+  ?~  t.chars
+    $(chars t.chars, out (snoc out c))
+  =/  n=@tD  i.t.chars
+  ?:  =(n '1')
+    $(chars t.t.chars, out (snoc out '/'))
+  ?:  =(n '0')
+    $(chars t.t.chars, out (snoc out '~'))
+  $(chars t.chars, out (snoc out c))
 --

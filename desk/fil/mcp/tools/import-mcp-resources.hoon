@@ -37,8 +37,8 @@
         (pure:am ~)
       ;<  ~  bind:am
         %:  raw-poke:io
-            [our.bowl %mcp-server]
-            [%import-resources !>(i.remaining)]
+          [our.bowl %mcp-server]
+          [%import-resources !>(i.remaining)]
         ==
       $(remaining t.remaining)
     ;<  ~  bind:m  (import-all agents)
@@ -66,13 +66,13 @@
       `new
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %structured
-    %-  pairs:enjs:format
-    %-  zing
-    :~  :~  [%imported-resources a+(turn added |=(=resource:mcp s+uri.resource))]
-        ==
-        ?~  refreshed  ~
-        :~  [%refreshed-resources a+(turn refreshed |=(=resource:mcp s+uri.resource))]
-    ==  ==
+        :-  %result
+        :-  %structured
+        %-  pairs:enjs:format
+        %-  zing
+        :~  :~  [%imported-resources a+(turn added |=(=resource:mcp s+uri.resource))]
+            ==
+            ?~  refreshed  ~
+            :~  [%refreshed-resources a+(turn refreshed |=(=resource:mcp s+uri.resource))]
+            ==  ==
 ==

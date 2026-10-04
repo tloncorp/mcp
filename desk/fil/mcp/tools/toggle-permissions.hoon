@@ -34,17 +34,17 @@
     ?>  ?=([%boolean ?] u.per)
     ;<  ~  bind:m
       %:  poke-our:io
-          %hood
-          %kiln-permission
-          !>([(@tas p.u.dek) / p.u.per])
+        %hood
+        %kiln-permission
+        !>([(@tas p.u.dek) / p.u.per])
       ==
     %-  pure:m
     !>  ^-  response:tool:mcp
-    :-  %result
-    :-  %unstructured
-    :~  :-  %text
-        ?:  p.u.per
-          (crip "Made {(trip p.u.dek)} public")
-        (crip "Made {(trip p.u.dek)} private")
-    ==
+        :-  %result
+        :-  %unstructured
+        :~  :-  %text
+            ?:  p.u.per
+              (crip "Made {(trip p.u.dek)} public")
+            (crip "Made {(trip p.u.dek)} private")
+        ==
 ==
