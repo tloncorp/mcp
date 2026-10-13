@@ -1,0 +1,782 @@
+{
+  "baseUrl": "https://www.googleapis.com/calendar/v3/",
+  "description": "Tlonbot Calendar v1: calendars, events, and availability.",
+  "id": "calendar:v3",
+  "kind": "discovery#restDescription",
+  "name": "calendar",
+  "resources": {
+    "calendarList": {
+      "methods": {
+        "get": {
+          "description": "Returns a calendar from the user's calendar list.",
+          "httpMethod": "GET",
+          "id": "calendar.calendarList.get",
+          "parameterOrder": [
+            "calendarId"
+          ],
+          "parameters": {
+            "calendarId": {
+              "description": "Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the \"primary\" keyword.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            }
+          },
+          "path": "users/me/calendarList/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+          ]
+        },
+        "list": {
+          "description": "Returns the calendars on the user's calendar list.",
+          "httpMethod": "GET",
+          "id": "calendar.calendarList.list",
+          "parameters": {
+            "maxResults": {
+              "description": "Maximum number of entries returned on one result page. By default the value is 100 entries. The page size can never be larger than 250 entries. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "minAccessRole": {
+              "description": "The minimum access role for the user in the returned entries. Optional. The default is no restriction.",
+              "enum": [
+                "freeBusyReader",
+                "owner",
+                "reader",
+                "writer",
+                "writerWithoutPrivateAccess"
+              ],
+              "enumDescriptions": [
+                "The user can read free/busy information.",
+                "The user can read and modify events and access control lists.",
+                "The user can read events that are not private.",
+                "The user can read and modify events.",
+                "The user can read and modify events that aren't private. The user can read free/busy information about private events. The user can't modify private events."
+              ],
+              "location": "query",
+              "type": "string"
+            },
+            "pageToken": {
+              "description": "Token specifying which result page to return. Optional.",
+              "location": "query",
+              "type": "string"
+            },
+            "showDeleted": {
+              "description": "Whether to include deleted calendar list entries in the result. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "showHidden": {
+              "description": "Whether to show hidden entries. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "showOwnOrganizationOnly": {
+              "description": "Whether to show only entries for calendars from the organization. This parameter is only applicable to Google Workspace users. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "syncToken": {
+              "description": "Token obtained from the nextSyncToken field returned on the last page of results from the previous list request. It makes the result of this list request contain only entries that have changed since then. If only read-only fields such as calendar properties or ACLs have changed, the entry won't be returned. All entries deleted and hidden since the previous list request will always be in the result set and it is not allowed to set showDeleted neither showHidden to False.\nTo ensure client state consistency minAccessRole and showOwnOrganizationOnly query parameters cannot be specified together with nextSyncToken.\nIf the syncToken expires, the server will respond with a 410 GONE response code and the client should clear its storage and perform a full synchronization without any syncToken.\nLearn more about incremental synchronization.\nOptional. The default is to return all entries.",
+              "location": "query",
+              "type": "string"
+            }
+          },
+          "path": "users/me/calendarList",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+          ]
+        }
+      }
+    },
+    "events": {
+      "methods": {
+        "get": {
+          "description": "Returns an event based on its Google Calendar ID. To retrieve an event using its iCalendar ID, call the events.list method using the iCalUID parameter.",
+          "httpMethod": "GET",
+          "id": "calendar.events.get",
+          "parameterOrder": [
+            "calendarId",
+            "eventId"
+          ],
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "description": "Deprecated and ignored. A value will always be returned in the email field for the organizer, creator and attendees, even if no real email address is available (i.e. a generated, non-working value will be provided).",
+              "location": "query",
+              "type": "boolean"
+            },
+            "calendarId": {
+              "description": "Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the \"primary\" keyword.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "eventId": {
+              "description": "Event identifier.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "maxAttendees": {
+              "description": "The maximum number of attendees to include in the response. If there are more than the specified number of attendees, only the participant is returned. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "timeZone": {
+              "description": "Time zone used in the response. Optional. The default is the time zone of the calendar.",
+              "location": "query",
+              "type": "string"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy"
+          ]
+        },
+        "insert": {
+          "description": "Creates an event. Only send attendee notifications when the user requested them; otherwise set sendUpdates=none. Google may still send some emails.",
+          "httpMethod": "POST",
+          "id": "calendar.events.insert",
+          "parameterOrder": [
+            "calendarId"
+          ],
+          "parameters": {
+            "calendarId": {
+              "description": "Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the \"primary\" keyword.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "conferenceDataVersion": {
+              "description": "Version number of conference data supported by the API client. Version 0 assumes no conference data support and ignores conference data in the event's body. Version 1 enables support for copying of ConferenceData as well as for creating new conferences using the createRequest field of conferenceData. The default is 0.",
+              "format": "int32",
+              "location": "query",
+              "maximum": "1",
+              "minimum": "0",
+              "type": "integer"
+            },
+            "eventLabelVersion": {
+              "description": "Version number of the event label feature supported by the API client. Version 0 assumes no event label support and processes the colorId field for color management. Version 1 enables support for event labels, and processes the eventLabelId in the event's body. In this case, the colorId field is ignored. The default is 0.",
+              "format": "int32",
+              "location": "query",
+              "maximum": "1",
+              "minimum": "0",
+              "type": "integer"
+            },
+            "maxAttendees": {
+              "description": "The maximum number of attendees to include in the response. If there are more than the specified number of attendees, only the participant is returned. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "sendNotifications": {
+              "description": "Deprecated. Please use sendUpdates instead.\n\nWhether to send notifications about the creation of the new event. Note that some emails might still be sent even if you set the value to false. The default is false.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "sendUpdates": {
+              "description": "Whether to send notifications about the creation of the new event. Note that some emails might still be sent. The default is false.",
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
+              "enumDescriptions": [
+                "Notifications are sent to all guests.",
+                "Notifications are sent to non-Google Calendar guests only.",
+                "No notifications are sent. Warning: Using the value none can have significant adverse effects, including events not syncing to external calendars or events being lost altogether for some users. For calendar migration tasks, consider using the events.import method instead."
+              ],
+              "location": "query",
+              "type": "string"
+            },
+            "supportsAttachments": {
+              "description": "Whether API client performing operation supports event attachments. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            }
+          },
+          "path": "calendars/{calendarId}/events",
+          "request": {
+            "$ref": "TlonCalendarEventCreate"
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.events"
+          ]
+        },
+        "list": {
+          "description": "Returns events on the specified calendar.",
+          "httpMethod": "GET",
+          "id": "calendar.events.list",
+          "parameterOrder": [
+            "calendarId"
+          ],
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "description": "Deprecated and ignored.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "calendarId": {
+              "description": "Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the \"primary\" keyword.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "eventTypes": {
+              "description": "Event types to return. Optional. This parameter can be repeated multiple times to return events of different types. If unset, returns all event types.",
+              "enum": [
+                "birthday",
+                "default",
+                "focusTime",
+                "fromGmail",
+                "outOfOffice",
+                "workingLocation"
+              ],
+              "enumDescriptions": [
+                "Special all-day events with an annual recurrence.",
+                "Regular events.",
+                "Focus time events.",
+                "Events from Gmail.",
+                "Out of office events.",
+                "Working location events."
+              ],
+              "location": "query",
+              "repeated": true,
+              "type": "string"
+            },
+            "iCalUID": {
+              "description": "Specifies an event ID in the iCalendar format to be provided in the response. Optional. Use this if you want to search for an event by its iCalendar ID.",
+              "location": "query",
+              "type": "string"
+            },
+            "maxAttendees": {
+              "description": "The maximum number of attendees to include in the response. If there are more than the specified number of attendees, only the participant is returned. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "maxResults": {
+              "default": "250",
+              "description": "Maximum number of events returned on one result page. The number of events in the resulting page may be less than this value, or none at all, even if there are more events matching the query. Incomplete pages can be detected by a non-empty nextPageToken field in the response. By default the value is 250 events. The page size can never be larger than 2500 events. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "orderBy": {
+              "description": "The order of the events returned in the result. Optional. The default is an unspecified, stable order.",
+              "enum": [
+                "startTime",
+                "updated"
+              ],
+              "enumDescriptions": [
+                "Order by the start date/time (ascending). This is only available when querying single events (i.e. the parameter singleEvents is True)",
+                "Order by last modification time (ascending)."
+              ],
+              "location": "query",
+              "type": "string"
+            },
+            "pageToken": {
+              "description": "Token specifying which result page to return. Optional.",
+              "location": "query",
+              "type": "string"
+            },
+            "privateExtendedProperty": {
+              "description": "Extended properties constraint specified as propertyName=value. Matches only private properties. This parameter might be repeated multiple times to return events that match all given constraints.",
+              "location": "query",
+              "repeated": true,
+              "type": "string"
+            },
+            "q": {
+              "description": "Free text search terms to find events that match these terms in the following fields:\n\n- summary \n- description \n- location \n- attendee's displayName \n- attendee's email \n- organizer's displayName \n- organizer's email \n- workingLocationProperties.officeLocation.buildingId \n- workingLocationProperties.officeLocation.deskId \n- workingLocationProperties.officeLocation.label \n- workingLocationProperties.customLocation.label \nThese search terms also match predefined keywords against all display title translations of working location, out-of-office, and focus-time events. For example, searching for \"Office\" or \"Bureau\" returns working location events of type officeLocation, whereas searching for \"Out of office\" or \"Abwesend\" returns out-of-office events. Optional.",
+              "location": "query",
+              "type": "string"
+            },
+            "sharedExtendedProperty": {
+              "description": "Extended properties constraint specified as propertyName=value. Matches only shared properties. This parameter might be repeated multiple times to return events that match all given constraints.",
+              "location": "query",
+              "repeated": true,
+              "type": "string"
+            },
+            "showDeleted": {
+              "description": "Whether to include deleted events (with status equals \"cancelled\") in the result. Cancelled instances of recurring events (but not the underlying recurring event) will still be included if showDeleted and singleEvents are both False. If showDeleted and singleEvents are both True, only single instances of deleted events (but not the underlying recurring events) are returned. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "showHiddenInvitations": {
+              "description": "Whether to include hidden invitations in the result. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "singleEvents": {
+              "description": "Whether to expand recurring events into instances and only return single one-off events and instances of recurring events, but not the underlying recurring events themselves. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "syncToken": {
+              "description": "Token obtained from the nextSyncToken field returned on the last page of results from the previous list request. It makes the result of this list request contain only entries that have changed since then. All events deleted since the previous list request will always be in the result set and it is not allowed to set showDeleted to False.\nThere are several query parameters that cannot be specified together with nextSyncToken to ensure consistency of the client state.\n\nThese are: \n- iCalUID \n- orderBy \n- privateExtendedProperty \n- q \n- sharedExtendedProperty \n- timeMin \n- timeMax \n- updatedMin All other query parameters should be the same as for the initial synchronization to avoid undefined behavior. If the syncToken expires, the server will respond with a 410 GONE response code and the client should clear its storage and perform a full synchronization without any syncToken.\nLearn more about incremental synchronization.\nOptional. The default is to return all entries.",
+              "location": "query",
+              "type": "string"
+            },
+            "timeMax": {
+              "description": "Upper bound (exclusive) for an event's start time to filter by. Optional. The default is not to filter by start time. Must be an RFC3339 timestamp with mandatory time zone offset, for example, 2011-06-03T10:00:00-07:00, 2011-06-03T10:00:00Z. Milliseconds may be provided but are ignored. If timeMin is set, timeMax must be greater than timeMin.",
+              "format": "date-time",
+              "location": "query",
+              "type": "string"
+            },
+            "timeMin": {
+              "description": "Lower bound (exclusive) for an event's end time to filter by. Optional. The default is not to filter by end time. Must be an RFC3339 timestamp with mandatory time zone offset, for example, 2011-06-03T10:00:00-07:00, 2011-06-03T10:00:00Z. Milliseconds may be provided but are ignored. If timeMax is set, timeMin must be smaller than timeMax.",
+              "format": "date-time",
+              "location": "query",
+              "type": "string"
+            },
+            "timeZone": {
+              "description": "Time zone used in the response. Optional. The default is the time zone of the calendar.",
+              "location": "query",
+              "type": "string"
+            },
+            "updatedMin": {
+              "description": "Lower bound for an event's last modification time (as a RFC3339 timestamp) to filter by. When specified, entries deleted since this time will always be included regardless of showDeleted. Optional. The default is not to filter by last modification time.",
+              "format": "date-time",
+              "location": "query",
+              "type": "string"
+            }
+          },
+          "path": "calendars/{calendarId}/events",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy"
+          ]
+        },
+        "patch": {
+          "description": "Updates an event. This method supports patch semantics. Only send attendee notifications when the user requested them; otherwise set sendUpdates=none. Google may still send some emails.",
+          "httpMethod": "PATCH",
+          "id": "calendar.events.patch",
+          "parameterOrder": [
+            "calendarId",
+            "eventId"
+          ],
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "description": "Deprecated and ignored. A value will always be returned in the email field for the organizer, creator and attendees, even if no real email address is available (i.e. a generated, non-working value will be provided).",
+              "location": "query",
+              "type": "boolean"
+            },
+            "calendarId": {
+              "description": "Calendar identifier. To retrieve calendar IDs call the calendarList.list method. If you want to access the primary calendar of the currently logged in user, use the \"primary\" keyword.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "conferenceDataVersion": {
+              "description": "Version number of conference data supported by the API client. Version 0 assumes no conference data support and ignores conference data in the event's body. Version 1 enables support for copying of ConferenceData as well as for creating new conferences using the createRequest field of conferenceData. The default is 0.",
+              "format": "int32",
+              "location": "query",
+              "maximum": "1",
+              "minimum": "0",
+              "type": "integer"
+            },
+            "eventId": {
+              "description": "Event identifier.",
+              "location": "path",
+              "required": true,
+              "type": "string"
+            },
+            "eventLabelVersion": {
+              "description": "Version number of the event label feature supported by the API client. Version 0 assumes no event label support and processes the colorId field for color management. Version 1 enables support for event labels, and processes the eventLabelId in the event's body. In this case, the colorId field is ignored. The default is 0.",
+              "format": "int32",
+              "location": "query",
+              "maximum": "1",
+              "minimum": "0",
+              "type": "integer"
+            },
+            "maxAttendees": {
+              "description": "The maximum number of attendees to include in the response. If there are more than the specified number of attendees, only the participant is returned. Optional.",
+              "format": "int32",
+              "location": "query",
+              "minimum": "1",
+              "type": "integer"
+            },
+            "sendNotifications": {
+              "description": "Deprecated. Please use sendUpdates instead.\n\nWhether to send notifications about the event update (for example, description changes, etc.). Note that some emails might still be sent even if you set the value to false. The default is false.",
+              "location": "query",
+              "type": "boolean"
+            },
+            "sendUpdates": {
+              "description": "Guests who should receive notifications about the event update (for example, title changes, etc.).",
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
+              "enumDescriptions": [
+                "Notifications are sent to all guests.",
+                "Notifications are sent to non-Google Calendar guests only.",
+                "No notifications are sent. For calendar migration tasks, consider using the Events.import method instead."
+              ],
+              "location": "query",
+              "type": "string"
+            },
+            "supportsAttachments": {
+              "description": "Whether API client performing operation supports event attachments. Optional. The default is False.",
+              "location": "query",
+              "type": "boolean"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "request": {
+            "$ref": "Event"
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.events"
+          ]
+        }
+      }
+    },
+    "freebusy": {
+      "methods": {
+        "query": {
+          "description": "Returns free/busy information for a set of calendars.",
+          "httpMethod": "POST",
+          "id": "calendar.freebusy.query",
+          "path": "freeBusy",
+          "request": {
+            "$ref": "FreeBusyRequest"
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar.events.freebusy"
+          ],
+          "x-mcp-read-only": true
+        }
+      }
+    }
+  },
+  "rootUrl": "https://www.googleapis.com/",
+  "schemas": {
+    "Event": {
+      "properties": {
+        "attendees": {
+          "description": "The attendees of the event. See the Events with attendees guide for more information on scheduling events with other calendar users. Service accounts need to use domain-wide delegation of authority to populate the attendee list.",
+          "items": {
+            "$ref": "EventAttendee"
+          },
+          "type": "array"
+        },
+        "colorId": {
+          "description": "The color of the event. This is an ID referring to an entry in the event section of the colors definition (see the  colors endpoint). Optional.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Description of the event. Can contain HTML. Optional.",
+          "type": "string"
+        },
+        "end": {
+          "$ref": "EventDateTime",
+          "annotations": {
+            "required": [
+              "calendar.events.import",
+              "calendar.events.insert",
+              "calendar.events.update"
+            ]
+          },
+          "description": "The (exclusive) end time of the event. For a recurring event, this is the end time of the first instance."
+        },
+        "location": {
+          "description": "Geographic location of the event as free-form text. Optional.",
+          "type": "string"
+        },
+        "recurrence": {
+          "description": "List of RRULE, EXRULE, RDATE and EXDATE lines for a recurring event, as specified in RFC5545. Note that DTSTART and DTEND lines are not allowed in this field; event start and end times are specified in the start and end fields. This field is omitted for single events or instances of recurring events.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reminders": {
+          "description": "Information about the event's reminders for the authenticated user. Note that changing reminders does not also change the updated property of the enclosing event.",
+          "properties": {
+            "overrides": {
+              "description": "If the event doesn't use the default reminders, this lists the reminders specific to the event, or, if not set, indicates that no reminders are set for this event. The maximum number of override reminders is 5.",
+              "items": {
+                "$ref": "EventReminder"
+              },
+              "type": "array"
+            },
+            "useDefault": {
+              "description": "Whether the default reminders of the calendar apply to the event.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "start": {
+          "$ref": "EventDateTime",
+          "annotations": {
+            "required": [
+              "calendar.events.import",
+              "calendar.events.insert",
+              "calendar.events.update"
+            ]
+          },
+          "description": "The (inclusive) start time of the event. For a recurring event, this is the start time of the first instance."
+        },
+        "summary": {
+          "description": "Title of the event.",
+          "type": "string"
+        },
+        "transparency": {
+          "default": "opaque",
+          "description": "Whether the event blocks time on the calendar. Optional. Possible values are:  \n- \"opaque\" - Default value. The event does block time on the calendar. This is equivalent to setting Show me as to Busy in the Calendar UI. \n- \"transparent\" - The event does not block time on the calendar. This is equivalent to setting Show me as to Available in the Calendar UI.",
+          "type": "string"
+        },
+        "visibility": {
+          "default": "default",
+          "description": "Visibility of the event. Optional. Possible values are:  \n- \"default\" - Uses the default visibility for events on the calendar. This is the default value. \n- \"public\" - The event is public and event details are visible to all readers of the calendar. \n- \"private\" - The event is private and only event attendees may view event details. \n- \"confidential\" - The event is private. This value is provided for compatibility reasons.  \nNote on recurring events: Changing the visibility of a single instance of a recurring event can affect all instances of the series. If the new setting is more restrictive (e.g. from public to private), it is applied to all instances. If the new setting is less restrictive (e.g. from private to public), the change is ignored. To make a recurring event less restrictive, you must update the parent recurring event.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EventAttendee": {
+      "id": "EventAttendee",
+      "properties": {
+        "additionalGuests": {
+          "default": "0",
+          "description": "Number of additional guests. Optional. The default is 0.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "asyncOperation": {
+          "default": "",
+          "description": "If present, indicates the status of an asynchronous operation ongoing for this attendee (e.g. listing of members of large attendee groups). Read-only. The default is to not be present.\nPossible values are:  \n- \"inProgress\" - The asynchronous operation is in progress. \n- (not present) - Otherwise.",
+          "type": "string"
+        },
+        "comment": {
+          "description": "The attendee's response comment. Optional.",
+          "type": "string"
+        },
+        "displayName": {
+          "description": "The attendee's name, if available. Optional.",
+          "type": "string"
+        },
+        "email": {
+          "description": "The attendee's email address, if available. This field must be present when adding an attendee. It must be a valid email address as per RFC5322.\nRequired when adding an attendee.",
+          "type": "string"
+        },
+        "id": {
+          "description": "The attendee's Profile ID, if available.",
+          "type": "string"
+        },
+        "optional": {
+          "default": "false",
+          "description": "Whether this is an optional attendee. Optional. The default is False.",
+          "type": "boolean"
+        },
+        "organizer": {
+          "description": "Whether the attendee is the organizer of the event. Read-only. The default is False.",
+          "type": "boolean"
+        },
+        "resource": {
+          "default": "false",
+          "description": "Whether the attendee is a resource. Can only be set when the attendee is added to the event for the first time. Subsequent modifications are ignored. Optional. The default is False.",
+          "type": "boolean"
+        },
+        "responseStatus": {
+          "description": "The attendee's response status. Possible values are:  \n- \"needsAction\" - The attendee has not responded to the invitation (recommended for new events). \n- \"declined\" - The attendee has declined the invitation. \n- \"tentative\" - The attendee has tentatively accepted the invitation. \n- \"accepted\" - The attendee has accepted the invitation.  Warning: If you add an event using the values declined, tentative, or accepted, attendees with the \"Add invitations to my calendar\" setting set to \"When I respond to invitation in email\" or \"Only if the sender is known\" might have their response reset to needsAction and won't see an event in their calendar unless they change their response in the event invitation email. Furthermore, if more than 200 guests are invited to the event, response status is not propagated to the guests.",
+          "type": "string"
+        },
+        "self": {
+          "default": "false",
+          "description": "Whether this entry represents the calendar on which this copy of the event appears. Read-only. The default is False.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "EventDateTime": {
+      "id": "EventDateTime",
+      "properties": {
+        "date": {
+          "description": "The date, in the format \"yyyy-mm-dd\", if this is an all-day event.",
+          "format": "date",
+          "type": "string"
+        },
+        "dateTime": {
+          "description": "The time, as a combined date-time value (formatted according to RFC3339). A time zone offset is required unless a time zone is explicitly specified in timeZone.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "timeZone": {
+          "description": "The time zone in which the time is specified. (Formatted as an IANA Time Zone Database name, e.g. \"Europe/Zurich\".) For recurring events this field is required and specifies the time zone in which the recurrence is expanded. For single events this field is optional and indicates a custom time zone for the event start/end.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EventReminder": {
+      "id": "EventReminder",
+      "properties": {
+        "method": {
+          "description": "The method used by this reminder. Possible values are:  \n- \"email\" - Reminders are sent via email. \n- \"popup\" - Reminders are sent via a UI popup.  \nRequired when adding a reminder.",
+          "type": "string"
+        },
+        "minutes": {
+          "description": "Number of minutes before the start of the event when the reminder should trigger. Valid values are between 0 and 40320 (4 weeks in minutes).\nRequired when adding a reminder.",
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "FreeBusyRequest": {
+      "id": "FreeBusyRequest",
+      "properties": {
+        "calendarExpansionMax": {
+          "description": "Maximal number of calendars for which FreeBusy information is to be provided. Optional. Maximum value is 50.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "groupExpansionMax": {
+          "description": "Maximal number of calendar identifiers to be provided for a single group. Optional. An error is returned for a group with more members than this value. Maximum value is 100.",
+          "format": "int32",
+          "type": "integer"
+        },
+        "items": {
+          "description": "List of calendars and/or groups to query.",
+          "items": {
+            "$ref": "FreeBusyRequestItem"
+          },
+          "type": "array"
+        },
+        "timeMax": {
+          "description": "The end of the interval for the query formatted as per RFC3339.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "timeMin": {
+          "description": "The start of the interval for the query formatted as per RFC3339.",
+          "format": "date-time",
+          "type": "string"
+        },
+        "timeZone": {
+          "default": "UTC",
+          "description": "Time zone used in the response. Optional. The default is UTC.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timeMin",
+        "timeMax",
+        "items"
+      ],
+      "type": "object"
+    },
+    "FreeBusyRequestItem": {
+      "id": "FreeBusyRequestItem",
+      "properties": {
+        "id": {
+          "description": "The identifier of a calendar or a group.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TlonCalendarEventCreate": {
+      "properties": {
+        "attendees": {
+          "description": "The attendees of the event. See the Events with attendees guide for more information on scheduling events with other calendar users. Service accounts need to use domain-wide delegation of authority to populate the attendee list.",
+          "items": {
+            "$ref": "EventAttendee"
+          },
+          "type": "array"
+        },
+        "colorId": {
+          "description": "The color of the event. This is an ID referring to an entry in the event section of the colors definition (see the  colors endpoint). Optional.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Description of the event. Can contain HTML. Optional.",
+          "type": "string"
+        },
+        "end": {
+          "$ref": "EventDateTime",
+          "annotations": {
+            "required": [
+              "calendar.events.import",
+              "calendar.events.insert",
+              "calendar.events.update"
+            ]
+          },
+          "description": "The (exclusive) end time of the event. For a recurring event, this is the end time of the first instance."
+        },
+        "location": {
+          "description": "Geographic location of the event as free-form text. Optional.",
+          "type": "string"
+        },
+        "recurrence": {
+          "description": "List of RRULE, EXRULE, RDATE and EXDATE lines for a recurring event, as specified in RFC5545. Note that DTSTART and DTEND lines are not allowed in this field; event start and end times are specified in the start and end fields. This field is omitted for single events or instances of recurring events.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reminders": {
+          "description": "Information about the event's reminders for the authenticated user. Note that changing reminders does not also change the updated property of the enclosing event.",
+          "properties": {
+            "overrides": {
+              "description": "If the event doesn't use the default reminders, this lists the reminders specific to the event, or, if not set, indicates that no reminders are set for this event. The maximum number of override reminders is 5.",
+              "items": {
+                "$ref": "EventReminder"
+              },
+              "type": "array"
+            },
+            "useDefault": {
+              "description": "Whether the default reminders of the calendar apply to the event.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "start": {
+          "$ref": "EventDateTime",
+          "annotations": {
+            "required": [
+              "calendar.events.import",
+              "calendar.events.insert",
+              "calendar.events.update"
+            ]
+          },
+          "description": "The (inclusive) start time of the event. For a recurring event, this is the start time of the first instance."
+        },
+        "summary": {
+          "description": "Title of the event.",
+          "type": "string"
+        },
+        "transparency": {
+          "default": "opaque",
+          "description": "Whether the event blocks time on the calendar. Optional. Possible values are:  \n- \"opaque\" - Default value. The event does block time on the calendar. This is equivalent to setting Show me as to Busy in the Calendar UI. \n- \"transparent\" - The event does not block time on the calendar. This is equivalent to setting Show me as to Available in the Calendar UI.",
+          "type": "string"
+        },
+        "visibility": {
+          "default": "default",
+          "description": "Visibility of the event. Optional. Possible values are:  \n- \"default\" - Uses the default visibility for events on the calendar. This is the default value. \n- \"public\" - The event is public and event details are visible to all readers of the calendar. \n- \"private\" - The event is private and only event attendees may view event details. \n- \"confidential\" - The event is private. This value is provided for compatibility reasons.  \nNote on recurring events: Changing the visibility of a single instance of a recurring event can affect all instances of the series. If the new setting is more restrictive (e.g. from public to private), it is applied to all instances. If the new setting is less restrictive (e.g. from private to public), the change is ignored. To make a recurring event less restrictive, you must update the parent recurring event.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    }
+  },
+  "servicePath": "calendar/v3/",
+  "version": "v3"
+}

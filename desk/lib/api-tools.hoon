@@ -18,11 +18,11 @@
   ^-  (list json)
   =/  resources=json  (get-json-field:jut spec 'resources')
   ?.  ?=(%o -.resources)  ~
-  =/  res  (mule |.((walk-discovery-resources resources)))
+  =/  res  (mule |.((walk-discovery-resources spec resources)))
   ?:(?=(%& -.res) p.res ~)
 ::
 ++  walk-discovery-resources
-  |=  resources=json
+  |=  [spec=json resources=json]
   ^-  (list json)
   ?~  resources  ~
   ?.  ?=(%o -.resources)  ~
@@ -53,13 +53,18 @@
       ^-  (unit [@t json])
       ?~  pobj  ~
       ?.  ?=(%o -.pobj)  ~
-      =/  ptype=@t  (get-json-string:jut pobj 'type')
-      =/  pdesc=@t  (get-json-string:jut pobj 'description')
-      =/  prop=(map @t json)
-        (~(put by *(map @t json)) 'type' s+?:(=('' ptype) 'string' ptype))
-      =?  prop  !=('' pdesc)
-        (~(put by prop) 'description' s+pdesc)
-      `[pname [%o prop]]
+      =/  schema=json  (discovery-schema spec pobj 12)
+      ?>  ?=(%o -.schema)
+      =/  fields=(map @t json)  p.schema
+      =.  fields  (~(del by fields) 'required')
+      =.  fields  (~(del by fields) 'location')
+      =.  fields  (~(del by fields) 'repeated')
+      =/  repeated=json  (get-json-field:jut pobj 'repeated')
+      =/  prop=json
+        ?:  =(b+.y repeated)
+          (pairs:enjs:format ~[['type' s+'array'] ['items' [%o fields]]])
+        [%o fields]
+      `[pname prop]
     =?  reqs  &(?=(^ params-obj) ?=(%o -.params-obj))
       %+  murn  ~(tap by p.params-obj)
       |=  [pname=@t pobj=json]
@@ -69,11 +74,13 @@
       `s+pname
     =/  has-req=?  (~(has by p.mobj) 'request')
     =?  props  has-req
-      (~(put by props) 'body' [%o (~(put by *(map @t json)) 'type' s+'string')])
+      (~(put by props) 'body' (discovery-schema spec (get-json-field:jut mobj 'request') 12))
+    =?  reqs  has-req  (snoc reqs s+'body')
     %-  some
     %-  pairs:enjs:format
     :~  ['name' s+op-id]
         ['description' s+desc]
+        ['annotations' (method-annotations (get-json-string:jut mobj 'httpMethod') mobj)]
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
@@ -85,8 +92,67 @@
   =/  sub-tools=(list json)
     ?~  sub-resources  ~
     ?.  ?=(%o -.sub-resources)  ~
-    (walk-discovery-resources sub-resources)
+    (walk-discovery-resources spec sub-resources)
   (weld method-tools sub-tools)
+::
+++  discovery-schema
+  |=  [spec=json schema=json depth=@ud]
+  ^-  json
+  ::  Discovery references are names in schemas, not JSON pointers.
+  ::  Bound expansion so recursive Google schemas remain finite.
+  ?:  =(0 depth)  [%o ~]
+  ?~  schema  [%o ~]
+  ?.  ?=(%o -.schema)  [%o ~]
+  =/  ref=@t  (get-json-string:jut schema '$ref')
+  ?:  !=('' ref)
+    =/  target=json  (get-json-field:jut (get-json-field:jut spec 'schemas') ref)
+    =/  resolved=json  (discovery-schema spec target (sub depth 1))
+    =/  desc=@t  (get-json-string:jut schema 'description')
+    ?:  =('' desc)  resolved
+    ?>  ?=(%o -.resolved)
+    [%o (~(put by p.resolved) 'description' s+desc)]
+  =/  fields=(map @t json)  p.schema
+  =.  fields  (~(del by fields) 'id')
+  =?  fields  =('any' (get-json-string:jut schema 'type'))
+    (~(del by fields) 'type')
+  ::  Discovery parameter bounds are strings; JSON Schema needs numbers.
+  =/  bounds=(list @t)  ~['minimum' 'maximum']
+  =.  fields
+    |-
+    ?~  bounds  fields
+    =/  bound=json  (get-json-field:jut [%o fields] i.bounds)
+    ?~  bound  $(bounds t.bounds)
+    ?.  ?=(%s -.bound)  $(bounds t.bounds)
+    =/  next=(map @t json)
+      =/  parsed=(unit json)  (de:json:html p.bound)
+      ?~  parsed  (~(del by fields) i.bounds)
+      ?.  ?=(%n -.u.parsed)  (~(del by fields) i.bounds)
+      (~(put by fields) i.bounds u.parsed)
+    $(bounds t.bounds, fields next)
+  =/  props=json  (get-json-field:jut schema 'properties')
+  =?  fields  ?&(?=(^ props) ?=(%o -.props))
+    =/  expanded=(map @t json)
+      %-  ~(run by p.props)
+      |=  prop=json
+      (discovery-schema spec prop (sub depth 1))
+    (~(put by fields) 'properties' [%o expanded])
+  =/  items=json  (get-json-field:jut schema 'items')
+  =?  fields  ?&(?=(^ items) ?=(%o -.items))
+    (~(put by fields) 'items' (discovery-schema spec items (sub depth 1)))
+  =/  extra=json  (get-json-field:jut schema 'additionalProperties')
+  =?  fields  ?&(?=(^ extra) ?=(%o -.extra))
+    (~(put by fields) 'additionalProperties' (discovery-schema spec extra (sub depth 1)))
+  [%o fields]
+::
+++  method-annotations
+  |=  [method=@t operation=json]
+  ^-  json
+  ::  Only operator-supplied schemas can identify a read-only POST,
+  ::  such as Calendar freeBusy.query. Model-authored args cannot.
+  =/  read-only=?  =('get' (crip (cass (trip method))))
+  =/  hint=json  (get-json-field:jut operation 'x-mcp-read-only')
+  =?  read-only  ?&(?=(^ hint) ?=(%b -.hint))  p.hint
+  (pairs:enjs:format ~[['readOnlyHint' b+read-only]])
 ::
 ++  openapi-to-tools
   |=  spec=json
@@ -129,6 +195,7 @@
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
+          ['annotations' (method-annotations meth op)]
           ['inputSchema' (operation-input-schema spec path-str path-item op)]
       ==
     [tool $(ml t.ml)]
@@ -334,22 +401,33 @@
 ++  build-all-args-query
   |=  [args=json exclude=(set @t)]
   ^-  @t
+  (build-args-query args exclude ~)
+::
+++  build-args-query
+  |=  [args=json exclude=(set @t) repeated=(set @t)]
+  ^-  @t
   ?.  ?=(%o -.args)  ''
   =/  items=(list [@t json])  ~(tap by p.args)
   =/  parts=(list @t)
-    %+  murn  items
+    %-  zing
+    %+  turn  items
     |=  [key=@t val=json]
-    ^-  (unit @t)
+    ^-  (list @t)
     ?:  (~(has in exclude) key)  ~
     ::  skip null values — json `~` is the atom 0 and crashes -.val
     ?~  val  ~
-    =/  v=@t  (json-query-value val)
+    =/  values=(list json)
+      ?:  &((~(has in repeated) key) ?=(%a -.val))  p.val
+      ~[val]
+    %+  murn  values
+    |=  value=json
+    ^-  (unit @t)
+    =/  v=@t  (json-query-value value)
     ?:  =('' v)  ~
-    =/  part=@t
-      %+  rap  3
-      :~  (percent-encode:url-utils key)  '='  (percent-encode:url-utils v)
-      ==
-    `part
+    %-  some
+    %+  rap  3
+    :~  (percent-encode:url-utils key)  '='  (percent-encode:url-utils v)
+    ==
   ?~  parts  ''
   =/  result=@t  i.parts
   =/  rest=(list @t)  t.parts
@@ -564,14 +642,24 @@
       ==
   ^-  request:http
   =/  path-params=(set @t)  (extract-path-params path.op)
+  =/  repeated=(set @t)
+    =/  params=json  (get-json-field:jut operation.op 'parameters')
+    ?~  params  ~
+    ?.  ?=(%o -.params)  ~
+    %-  silt
+    %+  murn  ~(tap by p.params)
+    |=  [key=@t param=json]
+    ?.  =(b+.y (get-json-field:jut param 'repeated'))  ~
+    `key
   =/  api-url=@t
     =/  base-with-path=@t  (build-api-url base-url path.op args)
     =/  excluded=(set @t)  (~(put in path-params) 'body')
-    =/  qs=@t  (build-all-args-query args excluded)
+    =/  qs=@t  (build-args-query args excluded repeated)
     (cat 3 base-with-path qs)
   ::  build body for POST/PUT/PATCH
+  =/  normalized-method=@t  (crip (cass (trip method.op)))
   =/  req-method=method:http
-    ?+  method.op  %'GET'
+    ?+  normalized-method  %'GET'
       %'get'  %'GET'  %'post'  %'POST'  %'put'  %'PUT'
       %'patch'  %'PATCH'  %'delete'  %'DELETE'
     ==
