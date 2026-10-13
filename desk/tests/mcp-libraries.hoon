@@ -78,6 +78,7 @@
           =('object' (get-json-string:jut attendee 'type'))
           =('string' (get-json-string:jut (get-json-field:jut (get-json-field:jut attendee 'properties') 'email') 'type'))
           (lien (get-json-array:jut input 'required') |=(j=json =(s+'body' j)))
+          =((silt ~[s+'start' s+'end']) (silt (get-json-array:jut body 'required')))
       ==
     ~
   ~[leaf+"Calendar creation exposes nested event times and attendee objects"]
@@ -191,7 +192,7 @@
     %-  need
     %-  de:json:html
     '{"type":"object","properties":{"limit":{"type":"integer","default":"250"},"flag":{"type":"boolean","default":"false"},"yes":{"type":"boolean","default":"true"},"ratio":{"type":"number","default":"1.5"},"negative":{"type":"integer","default":"-2"},"text":{"type":"string","default":"false"},"fraction":{"type":"integer","default":"1.5"},"invalid":{"type":"boolean","default":"no"},"typed":{"type":"boolean","default":false}}}'
-  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema 12)
+  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema '' 12)
   =/  fields=json  (get-json-field:jut normalized 'properties')
   ?:  ?&  =(n+'250' (get-json-field:jut (get-json-field:jut fields 'limit') 'default'))
           =(b+.n (get-json-field:jut (get-json-field:jut fields 'flag') 'default'))
@@ -212,7 +213,7 @@
     %-  need
     %-  de:json:html
     '{"type":"object","required":["existing"],"properties":{"existing":{"type":"string","required":true},"optional":{"type":"string","required":false},"nested":{"type":"object","required":true,"properties":{"name":{"type":"string","required":true,"annotations":{"required":["example.insert"]}}}},"list":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","required":true}}}},"map":{"type":"object","additionalProperties":{"type":"object","properties":{"id":{"type":"string","required":true}}}}}}'
-  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema 12)
+  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema '' 12)
   =/  fields=json  (get-json-field:jut normalized 'properties')
   =/  nested=json  (get-json-field:jut fields 'nested')
   =/  name=json  (get-json-field:jut (get-json-field:jut nested 'properties') 'name')
@@ -259,10 +260,99 @@
     %-  de:json:html
     '{"schemas":{"Node":{"type":"object","properties":{"next":{"$ref":"Node"}}}}}'
   =/  ref=json  (need (de:json:html '{"$ref":"Node"}'))
-  =/  result=json  (discovery-schema:api-tools spec ref 2)
+  =/  result=json  (discovery-schema:api-tools spec ref '' 2)
   =/  next=json  (get-json-field:jut (get-json-field:jut result 'properties') 'next')
   ?:  =([%o ~] next)  ~
   ~[leaf+"Recursive Discovery schemas stop at the expansion limit"]
+::
+++  test-discovery-method-required
+  ^-  tang
+  =/  spec=json
+    %-  need
+    %-  de:json:html
+    '''
+    {"schemas":{
+      "Record":{"type":"object","properties":{
+        "name":{"type":"string","annotations":{"required":["records.create"]}},
+        "details":{"$ref":"Details","annotations":{"required":["records.create"]}},
+        "items":{"type":"array","items":{"$ref":"Details"}},
+        "map":{"type":"object","additionalProperties":{"$ref":"Details"}}
+      }},
+      "Details":{"type":"object","properties":{
+        "value":{"type":"string","annotations":{"required":["records.create"]}}
+      }}
+    }}
+    '''
+  =/  ref=json  (need (de:json:html '{"$ref":"Record"}'))
+  =/  create=json  (discovery-schema:api-tools spec ref 'records.create' 12)
+  =/  patch=json  (discovery-schema:api-tools spec ref 'records.patch' 12)
+  =/  fields=json  (get-json-field:jut create 'properties')
+  =/  details=json  (get-json-field:jut fields 'details')
+  =/  items=json  (get-json-field:jut (get-json-field:jut fields 'items') 'items')
+  =/  extra=json  (get-json-field:jut (get-json-field:jut fields 'map') 'additionalProperties')
+  =/  patch-details=json
+    (get-json-field:jut (get-json-field:jut patch 'properties') 'details')
+  ?:  ?&  =((silt ~[s+'name' s+'details']) (silt (get-json-array:jut create 'required')))
+          =(~[s+'value'] (get-json-array:jut details 'required'))
+          =(~[s+'value'] (get-json-array:jut items 'required'))
+          =(~[s+'value'] (get-json-array:jut extra 'required'))
+          =(~ (get-json-array:jut patch 'required'))
+          =(~ (get-json-array:jut patch-details 'required'))
+      ==
+    ~
+  ~[leaf+"Method requirements expand through references, arrays, and maps"]
+::
+++  test-discovery-body-errors
+  ^-  tang
+  =/  insert  (need (find-operation:api-tools calendar-spec 'calendar.events.insert'))
+  =/  patch  (need (find-operation:api-tools calendar-spec 'calendar.events.patch'))
+  =/  cases=(list [args=@t error=@t])
+    :~  ['{}' 'body is required. Use describe to get the current input schema.']
+        :-  '{"body":"{\\"start\\":{},\\"end\\":{}}"}'
+        'body must be a JSON object. Use describe to get the current input schema.'
+        ['{"body":{"start":{}}}' 'body.end is required.']
+        ['{"body":{"end":{}}}' 'body.start is required.']
+    ==
+  =/  rejected=?
+    %+  levy  cases
+    |=  [args=@t error=@t]
+    =/  actual=(unit @t)
+      (request-body-error:api-tools calendar-spec operation.insert (need (de:json:html args)))
+    =(`error actual)
+  =/  complete=json  (need (de:json:html '{"body":{"start":{},"end":{}}}'))
+  =/  changes=json  (need (de:json:html '{"body":{"summary":"Changed"}}'))
+  ?:  ?&  rejected
+          =(~ (request-body-error:api-tools calendar-spec operation.insert complete))
+          =(~ (request-body-error:api-tools calendar-spec operation.patch changes))
+      ==
+    ~
+  ~[leaf+"Body checks reject encoded objects and missing fields while allowing patches"]
+::
+++  test-openapi-body-errors
+  ^-  tang
+  =/  spec=json
+    %-  need
+    %-  de:json:html
+    '{"components":{"schemas":{"Record":{"type":"object","required":["name"]}}}}'
+  =/  op=json
+    %-  need
+    %-  de:json:html
+    '{"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Record"}}}}}'
+  =/  string-op=json
+    %-  need
+    %-  de:json:html
+    '{"requestBody":{"content":{"application/json":{"schema":{"type":"string"}}}}}'
+  =/  encoded=json  (need (de:json:html '{"body":"hello"}'))
+  =/  missing=json  (need (de:json:html '{"body":{}}'))
+  =/  valid=json  (need (de:json:html '{"body":{"name":"hello"}}'))
+  ?:  ?&  ?=(^ (request-body-error:api-tools spec op encoded))
+          =(`'body.name is required.' (request-body-error:api-tools spec op missing))
+          =(~ (request-body-error:api-tools spec op valid))
+          =(~ (request-body-error:api-tools spec string-op encoded))
+          =(~ (request-body-error:api-tools spec string-op [%o ~]))
+      ==
+    ~
+  ~[leaf+"OpenAPI body checks resolve schemas and preserve legitimate string and optional bodies"]
 ::
 ++  tool-named
   |=  [tools=(list json) name=@t]
@@ -281,7 +371,7 @@
     "insert":{"id":"calendar.events.insert","path":"calendars/{calendarId}/events","httpMethod":"POST","request":{"$ref":"Event"}},
     "patch":{"id":"calendar.events.patch","path":"calendars/{calendarId}/events/{eventId}","httpMethod":"PATCH","request":{"$ref":"Event"}}
   }}},"schemas":{
-    "Event":{"type":"object","properties":{"start":{"$ref":"EventDateTime"},"end":{"$ref":"EventDateTime"},"attendees":{"type":"array","items":{"$ref":"Attendee"}}}},
+    "Event":{"type":"object","properties":{"start":{"$ref":"EventDateTime","annotations":{"required":["calendar.events.insert"]}},"end":{"$ref":"EventDateTime","annotations":{"required":["calendar.events.insert"]}},"attendees":{"type":"array","items":{"$ref":"Attendee"}}}},
     "EventDateTime":{"type":"object","properties":{"dateTime":{"type":"string"},"date":{"type":"string"},"timeZone":{"type":"string"}}},
     "Attendee":{"type":"object","properties":{"email":{"type":"string"}}}
   }}

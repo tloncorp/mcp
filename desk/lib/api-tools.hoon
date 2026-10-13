@@ -58,7 +58,7 @@
       ^-  (unit [@t json])
       ?~  pobj  ~
       ?.  ?=(%o -.pobj)  ~
-      =/  schema=json  (discovery-schema spec pobj 12)
+      =/  schema=json  (discovery-schema spec pobj op-id 12)
       ?>  ?=(%o -.schema)
       =/  fields=(map @t json)  p.schema
       =.  fields  (~(del by fields) 'required')
@@ -98,7 +98,7 @@
       `s+pname
     =/  has-req=?  (~(has by p.mobj) 'request')
     =?  props  has-req
-      (~(put by props) 'body' (discovery-schema spec (get-json-field:jut mobj 'request') 12))
+      (~(put by props) 'body' (discovery-schema spec (get-json-field:jut mobj 'request') op-id 12))
     =?  reqs  has-req  (snoc reqs s+'body')
     %-  some
     %-  pairs:enjs:format
@@ -120,7 +120,7 @@
   (weld method-tools sub-tools)
 ::
 ++  discovery-schema
-  |=  [spec=json schema=json depth=@ud]
+  |=  [spec=json schema=json method-id=@t depth=@ud]
   ^-  json
   ::  Discovery references are names in schemas, not JSON pointers.
   ::  Bound expansion so recursive Google schemas remain finite.
@@ -130,7 +130,7 @@
   =/  ref=@t  (get-json-string:jut schema '$ref')
   ?:  !=('' ref)
     =/  target=json  (get-json-field:jut (get-json-field:jut spec 'schemas') ref)
-    =/  resolved=json  (discovery-schema spec target (sub depth 1))
+    =/  resolved=json  (discovery-schema spec target method-id (sub depth 1))
     =/  desc=@t  (get-json-string:jut schema 'description')
     ?:  =('' desc)  resolved
     ?>  ?=(%o -.resolved)
@@ -172,7 +172,12 @@
     =/  required-props=(list json)
       %+  murn  ~(tap by p.props)
       |=  [name=@t prop=json]
-      ?.  =(b+.y (get-json-field:jut prop 'required'))  ~
+      =/  methods=(list json)
+        (get-json-array:jut (get-json-field:jut prop 'annotations') 'required')
+      ?.  ?|  =(b+.y (get-json-field:jut prop 'required'))
+              (lien methods |=(method=json =(method s+method-id)))
+          ==
+        ~
       ?:  (lien reqs |=(req=json =(req s+name)))  ~
       `s+name
     =?  fields  ?=(^ required-props)
@@ -180,14 +185,14 @@
     =/  expanded=(map @t json)
       %-  ~(run by p.props)
       |=  prop=json
-      (discovery-schema spec prop (sub depth 1))
+      (discovery-schema spec prop method-id (sub depth 1))
     (~(put by fields) 'properties' [%o expanded])
   =/  items=json  (get-json-field:jut schema 'items')
   =?  fields  ?&(?=(^ items) ?=(%o -.items))
-    (~(put by fields) 'items' (discovery-schema spec items (sub depth 1)))
+    (~(put by fields) 'items' (discovery-schema spec items method-id (sub depth 1)))
   =/  extra=json  (get-json-field:jut schema 'additionalProperties')
   =?  fields  ?&(?=(^ extra) ?=(%o -.extra))
-    (~(put by fields) 'additionalProperties' (discovery-schema spec extra (sub depth 1)))
+    (~(put by fields) 'additionalProperties' (discovery-schema spec extra method-id (sub depth 1)))
   [%o fields]
 ::
 ++  valid-discovery-default
@@ -494,6 +499,44 @@
   =/  body=(unit json)  (~(get by p.args) 'body')
   ?~  body  args
   u.body
+::
+++  request-body-error
+  |=  [spec=json op=json args=json]
+  ^-  (unit @t)
+  =/  discovery=?
+    =('discovery#restDescription' (get-json-string:jut spec 'kind'))
+  =/  declaration=json
+    ?:  discovery  (get-json-field:jut op 'request')
+    (resolve-openapi-ref spec (get-json-field:jut op 'requestBody'))
+  ?~  declaration  ~
+  =/  body=(unit json)
+    ?.  ?=([%o *] args)  ~
+    (~(get by p.args) 'body')
+  ?~  body
+    ?.  |(discovery (request-body-required spec op))  ~
+    `'body is required. Use describe to get the current input schema.'
+  =/  schema=json
+    ?:  discovery
+      (discovery-schema spec declaration (get-json-string:jut op 'id') 12)
+    (request-body-schema spec declaration)
+  ::  Enforce the body container before serializing it as JSON. Scalar and
+  ::  union schemas retain their own wire representation.
+  =/  typ=@t  (get-json-string:jut schema 'type')
+  ?:  ?&  =(~ u.body)
+          =(b+.y (get-json-field:jut schema 'nullable'))
+      ==
+    ~
+  ?:  &(=('object' typ) !?=([%o *] u.body))
+    `'body must be a JSON object. Use describe to get the current input schema.'
+  ?:  &(=('array' typ) !?=([%a *] u.body))
+    `'body must be a JSON array. Use describe to get the current input schema.'
+  ?.  ?=([%o *] u.body)  ~
+  =/  required=(list json)  (get-json-array:jut schema 'required')
+  |-
+  ?~  required  ~
+  ?.  ?=([%s *] i.required)  $(required t.required)
+  ?:  (~(has by p.u.body) p.i.required)  $(required t.required)
+  `(cat 3 'body.' (cat 3 p.i.required ' is required.'))
 ::
 ++  operation-input-schema
   |=  [spec=json path-template=@t path-item=json op=json]
