@@ -4,6 +4,11 @@
 |%
 ++  http-methods  (silt ~['get' 'post' 'put' 'patch' 'delete'])
 ::
+++  normalize-method
+  |=  method=@t
+  ^-  @t
+  (crip (cass (trip method)))
+::
 ++  spec-to-tools
   |=  spec=json
   ^-  (list json)
@@ -18,11 +23,11 @@
   ^-  (list json)
   =/  resources=json  (get-json-field:jut spec 'resources')
   ?.  ?=(%o -.resources)  ~
-  =/  res  (mule |.((walk-discovery-resources resources)))
+  =/  res  (mule |.((walk-discovery-resources spec resources)))
   ?:(?=(%& -.res) p.res ~)
 ::
 ++  walk-discovery-resources
-  |=  resources=json
+  |=  [spec=json resources=json]
   ^-  (list json)
   ?~  resources  ~
   ?.  ?=(%o -.resources)  ~
@@ -53,13 +58,37 @@
       ^-  (unit [@t json])
       ?~  pobj  ~
       ?.  ?=(%o -.pobj)  ~
-      =/  ptype=@t  (get-json-string:jut pobj 'type')
-      =/  pdesc=@t  (get-json-string:jut pobj 'description')
-      =/  prop=(map @t json)
-        (~(put by *(map @t json)) 'type' s+?:(=('' ptype) 'string' ptype))
-      =?  prop  !=('' pdesc)
-        (~(put by prop) 'description' s+pdesc)
-      `[pname [%o prop]]
+      =/  schema=json  (discovery-schema spec pobj op-id 12)
+      ?>  ?=(%o -.schema)
+      =/  fields=(map @t json)  p.schema
+      =.  fields  (~(del by fields) 'required')
+      =.  fields  (~(del by fields) 'location')
+      =.  fields  (~(del by fields) 'repeated')
+      ::  Keep the scalar parameter fallback without constraining any/objects.
+      =?  fields
+        ?&  =('' (get-json-string:jut pobj 'type'))
+            =('' (get-json-string:jut pobj '$ref'))
+            !(~(has by fields) 'type')
+            !(~(has by fields) 'properties')
+            !(~(has by fields) 'items')
+            !(~(has by fields) 'additionalProperties')
+        ==
+        (~(put by fields) 'type' s+'string')
+      =/  repeated=json  (get-json-field:jut pobj 'repeated')
+      =/  prop=json
+        ?:  =(b+.y repeated)
+          =/  desc=@t  (get-json-string:jut [%o fields] 'description')
+          =/  array=(map @t json)
+            %-  malt
+            ^-  (list [@t json])
+            :~  ['type' s+'array']
+                ['items' [%o (~(del by fields) 'description')]]
+            ==
+          =?  array  !=('' desc)
+            (~(put by array) 'description' s+desc)
+          [%o array]
+        [%o fields]
+      `[pname prop]
     =?  reqs  &(?=(^ params-obj) ?=(%o -.params-obj))
       %+  murn  ~(tap by p.params-obj)
       |=  [pname=@t pobj=json]
@@ -69,11 +98,13 @@
       `s+pname
     =/  has-req=?  (~(has by p.mobj) 'request')
     =?  props  has-req
-      (~(put by props) 'body' [%o (~(put by *(map @t json)) 'type' s+'string')])
+      (~(put by props) 'body' (discovery-schema spec (get-json-field:jut mobj 'request') op-id 12))
+    =?  reqs  has-req  (snoc reqs s+'body')
     %-  some
     %-  pairs:enjs:format
     :~  ['name' s+op-id]
         ['description' s+desc]
+        ['annotations' (method-annotations (get-json-string:jut mobj 'httpMethod'))]
         :-  'inputSchema'
         %-  pairs:enjs:format
         :~  ['type' s+'object']
@@ -85,8 +116,105 @@
   =/  sub-tools=(list json)
     ?~  sub-resources  ~
     ?.  ?=(%o -.sub-resources)  ~
-    (walk-discovery-resources sub-resources)
+    (walk-discovery-resources spec sub-resources)
   (weld method-tools sub-tools)
+::
+++  discovery-schema
+  |=  [spec=json schema=json method-id=@t depth=@ud]
+  ^-  json
+  ::  Discovery references are names in schemas, not JSON pointers.
+  ::  Bound expansion so recursive Google schemas remain finite.
+  ?:  =(0 depth)  [%o ~]
+  ?~  schema  [%o ~]
+  ?.  ?=(%o -.schema)  [%o ~]
+  =/  ref=@t  (get-json-string:jut schema '$ref')
+  ?:  !=('' ref)
+    =/  target=json  (get-json-field:jut (get-json-field:jut spec 'schemas') ref)
+    =/  resolved=json  (discovery-schema spec target method-id (sub depth 1))
+    =/  desc=@t  (get-json-string:jut schema 'description')
+    ?:  =('' desc)  resolved
+    ?>  ?=(%o -.resolved)
+    [%o (~(put by p.resolved) 'description' s+desc)]
+  =/  fields=(map @t json)  p.schema
+  =.  fields  (~(del by fields) 'id')
+  =.  fields  (~(del by fields) 'annotations')
+  ::  Draft-03 property flags become required names on the parent object.
+  =/  required=json  (get-json-field:jut schema 'required')
+  =?  fields  ?&(?=(^ required) ?=(%b -.required))
+    (~(del by fields) 'required')
+  =?  fields  =('any' (get-json-string:jut schema 'type'))
+    (~(del by fields) 'type')
+  ::  Discovery parameter bounds are strings; JSON Schema needs numbers.
+  =/  bounds=(list @t)  ~['minimum' 'maximum']
+  =.  fields
+    |-
+    ?~  bounds  fields
+    =/  bound=json  (get-json-field:jut [%o fields] i.bounds)
+    ?~  bound  $(bounds t.bounds)
+    ?.  ?=(%s -.bound)  $(bounds t.bounds)
+    =/  next=(map @t json)
+      =/  parsed=(unit json)  (de:json:html p.bound)
+      ?~  parsed  (~(del by fields) i.bounds)
+      ?.  ?=(%n -.u.parsed)  (~(del by fields) i.bounds)
+      (~(put by fields) i.bounds u.parsed)
+    $(bounds t.bounds, fields next)
+  =/  typ=@t  (get-json-string:jut schema 'type')
+  =?  fields  (~(has by fields) 'default')
+    ?:  !(~(has in (silt ~['integer' 'number' 'boolean'])) typ)  fields
+    =/  value=json  (get-json-field:jut schema 'default')
+    =?  value  ?&(?=(^ value) ?=(%s -.value))
+      (fall (de:json:html p.value) ~)
+    ?.  (valid-discovery-default typ value)  (~(del by fields) 'default')
+    (~(put by fields) 'default' value)
+  =/  props=json  (get-json-field:jut schema 'properties')
+  =?  fields  ?&(?=(^ props) ?=(%o -.props))
+    =/  reqs=(list json)  (get-json-array:jut schema 'required')
+    =/  required-props=(list json)
+      %+  murn  ~(tap by p.props)
+      |=  [name=@t prop=json]
+      =/  methods=(list json)
+        (get-json-array:jut (get-json-field:jut prop 'annotations') 'required')
+      ?.  ?|  =(b+.y (get-json-field:jut prop 'required'))
+              (lien methods |=(method=json =(method s+method-id)))
+          ==
+        ~
+      ?:  (lien reqs |=(req=json =(req s+name)))  ~
+      `s+name
+    =?  fields  ?=(^ required-props)
+      (~(put by fields) 'required' a+(weld reqs required-props))
+    =/  expanded=(map @t json)
+      %-  ~(run by p.props)
+      |=  prop=json
+      (discovery-schema spec prop method-id (sub depth 1))
+    (~(put by fields) 'properties' [%o expanded])
+  =/  items=json  (get-json-field:jut schema 'items')
+  =?  fields  ?&(?=(^ items) ?=(%o -.items))
+    (~(put by fields) 'items' (discovery-schema spec items method-id (sub depth 1)))
+  =/  extra=json  (get-json-field:jut schema 'additionalProperties')
+  =?  fields  ?&(?=(^ extra) ?=(%o -.extra))
+    (~(put by fields) 'additionalProperties' (discovery-schema spec extra method-id (sub depth 1)))
+  [%o fields]
+::
+++  valid-discovery-default
+  |=  [typ=@t value=json]
+  ^-  ?
+  ?~  value  %.n
+  ?:  =('boolean' typ)  ?=(%b -.value)
+  ?.  ?=(%n -.value)  %.n
+  ?:  =('number' typ)  %.y
+  ::  Omit fractional/exponent integer defaults rather than emit a bad hint.
+  =/  digits=tape  (trip p.value)
+  ?&  =(~ (find "." digits))
+      =(~ (find "e" digits))
+      =(~ (find "E" digits))
+  ==
+::
+++  method-annotations
+  |=  method=@t
+  ^-  json
+  ::  Remote specs cannot grant read-only status to a mutating HTTP method.
+  =/  read-only=?  =('get' (normalize-method method))
+  (pairs:enjs:format ~[['readOnlyHint' b+read-only]])
 ::
 ++  openapi-to-tools
   |=  spec=json
@@ -129,6 +257,7 @@
       %-  pairs:enjs:format
       :~  ['name' s+op-id]
           ['description' s+desc]
+          ['annotations' (method-annotations meth)]
           ['inputSchema' (operation-input-schema spec path-str path-item op)]
       ==
     [tool $(ml t.ml)]
@@ -331,25 +460,31 @@
   =/  param=@t  (crip (scag u.close rest))
   $(t (slag +(u.close) rest), result (~(put in result) param))
 ::
-++  build-all-args-query
-  |=  [args=json exclude=(set @t)]
+++  build-args-query
+  |=  [args=json exclude=(set @t) repeated=(set @t)]
   ^-  @t
   ?.  ?=(%o -.args)  ''
   =/  items=(list [@t json])  ~(tap by p.args)
   =/  parts=(list @t)
-    %+  murn  items
+    %-  zing
+    %+  turn  items
     |=  [key=@t val=json]
-    ^-  (unit @t)
+    ^-  (list @t)
     ?:  (~(has in exclude) key)  ~
     ::  skip null values — json `~` is the atom 0 and crashes -.val
     ?~  val  ~
-    =/  v=@t  (json-query-value val)
+    =/  values=(list json)
+      ?:  &((~(has in repeated) key) ?=(%a -.val))  p.val
+      ~[val]
+    %+  murn  values
+    |=  value=json
+    ^-  (unit @t)
+    =/  v=@t  (json-query-value value)
     ?:  =('' v)  ~
-    =/  part=@t
-      %+  rap  3
-      :~  (percent-encode:url-utils key)  '='  (percent-encode:url-utils v)
-      ==
-    `part
+    %-  some
+    %+  rap  3
+    :~  (percent-encode:url-utils key)  '='  (percent-encode:url-utils v)
+    ==
   ?~  parts  ''
   =/  result=@t  i.parts
   =/  rest=(list @t)  t.parts
@@ -364,6 +499,44 @@
   =/  body=(unit json)  (~(get by p.args) 'body')
   ?~  body  args
   u.body
+::
+++  request-body-error
+  |=  [spec=json op=json args=json]
+  ^-  (unit @t)
+  =/  discovery=?
+    =('discovery#restDescription' (get-json-string:jut spec 'kind'))
+  =/  declaration=json
+    ?:  discovery  (get-json-field:jut op 'request')
+    (resolve-openapi-ref spec (get-json-field:jut op 'requestBody'))
+  ?~  declaration  ~
+  =/  body=(unit json)
+    ?.  ?=([%o *] args)  ~
+    (~(get by p.args) 'body')
+  ?~  body
+    ?.  |(discovery (request-body-required spec op))  ~
+    `'body is required. Use describe to get the current input schema.'
+  =/  schema=json
+    ?:  discovery
+      (discovery-schema spec declaration (get-json-string:jut op 'id') 12)
+    (request-body-schema spec declaration)
+  ::  Enforce the body container before serializing it as JSON. Scalar and
+  ::  union schemas retain their own wire representation.
+  =/  typ=@t  (get-json-string:jut schema 'type')
+  ?:  ?&  =(~ u.body)
+          =(b+.y (get-json-field:jut schema 'nullable'))
+      ==
+    ~
+  ?:  &(=('object' typ) !?=([%o *] u.body))
+    `'body must be a JSON object. Use describe to get the current input schema.'
+  ?:  &(=('array' typ) !?=([%a *] u.body))
+    `'body must be a JSON array. Use describe to get the current input schema.'
+  ?.  ?=([%o *] u.body)  ~
+  =/  required=(list json)  (get-json-array:jut schema 'required')
+  |-
+  ?~  required  ~
+  ?.  ?=([%s *] i.required)  $(required t.required)
+  ?:  (~(has by p.u.body) p.i.required)  $(required t.required)
+  `(cat 3 'body.' (cat 3 p.i.required ' is required.'))
 ::
 ++  operation-input-schema
   |=  [spec=json path-template=@t path-item=json op=json]
@@ -564,14 +737,24 @@
       ==
   ^-  request:http
   =/  path-params=(set @t)  (extract-path-params path.op)
+  =/  repeated=(set @t)
+    =/  params=json  (get-json-field:jut operation.op 'parameters')
+    ?~  params  ~
+    ?.  ?=(%o -.params)  ~
+    %-  silt
+    %+  murn  ~(tap by p.params)
+    |=  [key=@t param=json]
+    ?.  =(b+.y (get-json-field:jut param 'repeated'))  ~
+    `key
   =/  api-url=@t
     =/  base-with-path=@t  (build-api-url base-url path.op args)
     =/  excluded=(set @t)  (~(put in path-params) 'body')
-    =/  qs=@t  (build-all-args-query args excluded)
+    =/  qs=@t  (build-args-query args excluded repeated)
     (cat 3 base-with-path qs)
   ::  build body for POST/PUT/PATCH
+  =/  normalized-method=@t  (normalize-method method.op)
   =/  req-method=method:http
-    ?+  method.op  %'GET'
+    ?+  normalized-method  %'GET'
       %'get'  %'GET'  %'post'  %'POST'  %'put'  %'PUT'
       %'patch'  %'PATCH'  %'delete'  %'DELETE'
     ==

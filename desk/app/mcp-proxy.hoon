@@ -8,7 +8,7 @@
 ::
 /-  mcp-proxy
 /-  oauth
-/+  mcp-catalog
+/+  mcp-catalog, mcp-json
 /+  jut=json-utils, api-tools, url-utils, http-utils
 /+  default-agent, dbug, server
 |%
@@ -733,6 +733,16 @@
         =/  args=json
           =/  a=(unit json)  ?.(?=(%o -.params) ~ (~(get by p.params) 'arguments'))
           (fall a params)
+        =/  body-error=(unit @t)
+          (request-body-error:api-tools u.spec operation.u.op args)
+        ?^  body-error
+          :_  this
+          %+  give-json:http-utils  eyre-id
+          %-  pairs:enjs:format
+          :~  ['jsonrpc' s+'2.0']
+              ['id' (get-json-field:jut jon 'id')]
+              ['result' (tool-result:mcp-json [%error u.body-error ~])]
+          ==
         ::  build API URL with path params and query string
         =/  base-url=@t  (resolve-base-url:api-tools u.spec url.u.srv)
         ::  no base URL means we'd issue a relative-URL request to iris
