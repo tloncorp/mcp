@@ -64,6 +64,11 @@ expansion, use `singleEvents=true` and time bounds.
 4. Create a Web application OAuth client. Register the exact redirect URI
    `https://oauth.test.tlon.systems/v1/callback`. For production, create a
    separate client/project with `https://oauth.tlon.io/v1/callback`.
+   Select **Use this client for an AI-powered agent**. Google identifies agent
+   tool execution separately from human-driven integrations; keep their OAuth
+   clients separate. Download the new client secret immediately and store it in
+   the secret manager: Google only reveals/downloads it when it is created.
+   See [Google's OAuth client guidance](https://support.google.com/cloud/answer/15549257#agentic-client).
 5. Set the variables in [oauth-proxy.env.example](oauth-proxy.env.example)
    through the deployment's secret manager. Replace the release-commit
    placeholder. Append `google-calendar:google` to the existing `PROVIDERS`
@@ -85,6 +90,10 @@ expansion, use `singleEvents=true` and time bounds.
 Each value above is prefixed with `https://www.googleapis.com/auth/` in the
 configuration. Google lists freebusy separately from event access; do not
 omit its scope. This connector requests no Gmail scopes.
+
+The Google Auth Platform console currently classifies `calendar.events` as
+sensitive; the calendar-list and freebusy scopes above are non-sensitive. The
+event scope still requires sensitive-scope verification for a public release.
 
 For an external public release, submit the sensitive scopes for Google OAuth
 verification. Prepare the public homepage/privacy policy, domain ownership,
