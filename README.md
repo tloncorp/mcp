@@ -113,9 +113,6 @@ http_headers = { "X-Api-Key" = "<your-key>" }
 
 ## Usage
 
-The [Google Calendar connector](./connectors/google-calendar/README.md) documents
-the managed OAuth configuration, curated tool surface, and pilot rollout.
-
 ### Tools
 
 Just ask! You can see the default tools [here](./desk/fil/mcp/tools).

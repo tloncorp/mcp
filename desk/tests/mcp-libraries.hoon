@@ -115,7 +115,10 @@
 ::
 ++  test-calendar-patch-request
   ^-  tang
-  =/  args=json  (need (de:json:html '{"calendarId":"a/b","eventId":"event","body":{"summary":"Changed"}}'))
+  =/  args=json
+    %-  need
+    %-  de:json:html
+    '{"calendarId":"a/b","eventId":"event","body":{"summary":"Changed"}}'
   =/  op  (need (find-operation:api-tools calendar-spec 'calendar.events.patch'))
   =/  =request:http  (build-request:api-tools 'https://www.googleapis.com/calendar/v3/' op args ~)
   ?:  ?&  =(%'PATCH' method.request)
@@ -127,7 +130,9 @@
 ::
 ++  test-calendar-repeated-query
   ^-  tang
-  =/  args=json  (need (de:json:html '{"calendarId":"primary","eventTypes":["default","outOfOffice"]}'))
+  =/  args=json
+    %-  need
+    (de:json:html '{"calendarId":"primary","eventTypes":["default","outOfOffice"]}')
   =/  op  (need (find-operation:api-tools calendar-spec 'calendar.events.list'))
   =/  =request:http  (build-request:api-tools 'https://www.googleapis.com/calendar/v3/' op args ~)
   ?:  =('https://www.googleapis.com/calendar/v3/calendars/primary/events?eventTypes=default&eventTypes=outOfOffice' url.request)
@@ -145,7 +150,7 @@
           =(b+.n (get-json-field:jut busy 'readOnlyHint'))
       ==
     ~
-  ~[leaf+"Only GETs are read-only without an operator-approved POST endpoint"]
+  ~[leaf+"Only GET operations carry the read-only annotation"]
 ::
 ++  test-spec-cannot-authorize-write
   ^-  tang
@@ -249,7 +254,10 @@
 ::
 ++  test-discovery-recursive-schema
   ^-  tang
-  =/  spec=json  (need (de:json:html '{"schemas":{"Node":{"type":"object","properties":{"next":{"$ref":"Node"}}}}}'))
+  =/  spec=json
+    %-  need
+    %-  de:json:html
+    '{"schemas":{"Node":{"type":"object","properties":{"next":{"$ref":"Node"}}}}}'
   =/  ref=json  (need (de:json:html '{"$ref":"Node"}'))
   =/  result=json  (discovery-schema:api-tools spec ref 2)
   =/  next=json  (get-json-field:jut (get-json-field:jut result 'properties') 'next')
