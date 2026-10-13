@@ -452,8 +452,7 @@
           },
           "scopes": [
             "https://www.googleapis.com/auth/calendar.events.freebusy"
-          ],
-          "x-mcp-read-only": true
+          ]
         }
       }
     }

@@ -139,15 +139,113 @@
   =/  tools=(list json)  (spec-to-tools:api-tools calendar-spec)
   =/  read=json  (get-json-field:jut (tool-named tools 'calendar.events.list') 'annotations')
   =/  write=json  (get-json-field:jut (tool-named tools 'calendar.events.insert') 'annotations')
-  =/  busy=json  (method-annotations:api-tools 'POST' (need (de:json:html '{"x-mcp-read-only":true}')))
-  =/  override=json  (method-annotations:api-tools 'GET' (need (de:json:html '{"x-mcp-read-only":false}')))
+  =/  busy=json  (method-annotations:api-tools 'POST')
   ?:  ?&  =(b+.y (get-json-field:jut read 'readOnlyHint'))
           =(b+.n (get-json-field:jut write 'readOnlyHint'))
-          =(b+.y (get-json-field:jut busy 'readOnlyHint'))
-          =(b+.n (get-json-field:jut override 'readOnlyHint'))
+          =(b+.n (get-json-field:jut busy 'readOnlyHint'))
       ==
     ~
-  ~[leaf+"Scheduled reads distinguish Calendar GETs and freebusy from event writes"]
+  ~[leaf+"Only GETs are read-only without an operator-approved POST endpoint"]
+::
+++  test-spec-cannot-authorize-write
+  ^-  tang
+  =/  specs=(list @t)
+    :~  '{"paths":{"/items":{"delete":{"operationId":"deleteItem","x-mcp-read-only":true},"post":{"operationId":"createItem","x-mcp-read-only":true}}}}'
+        '{"kind":"discovery#restDescription","resources":{"items":{"methods":{"delete":{"id":"deleteItem","path":"items","httpMethod":"DELETE","x-mcp-read-only":true},"create":{"id":"createItem","path":"items","httpMethod":"POST","x-mcp-read-only":true}}}}}'
+    ==
+  =/  safe=?
+    %+  levy  specs
+    |=  source=@t
+    =/  tools=(list json)  (spec-to-tools:api-tools (need (de:json:html source)))
+    ?&  =(2 (lent tools))
+        %+  levy  tools
+        |=  tool=json
+        =(b+.n (get-json-field:jut (get-json-field:jut tool 'annotations') 'readOnlyHint'))
+    ==
+  ?:  safe  ~
+  ~[leaf+"Neither OpenAPI nor Discovery can self-declare a write read-only"]
+::
+++  test-method-normalization
+  ^-  tang
+  =/  methods=(list [@t method:http])
+    ~[['GET' %'GET'] ['pOsT' %'POST'] ['PUT' %'PUT'] ['PaTcH' %'PATCH'] ['DELETE' %'DELETE']]
+  =/  consistent=?
+    %+  levy  methods
+    |=  [verb=@t expected=method:http]
+    =/  =request:http  (build-request:api-tools 'https://example.test/' ['items' verb ~] [%o ~] ~)
+    =/  hint=json  (method-annotations:api-tools verb)
+    ?&  =(expected method.request)
+        =(b+=(expected %'GET') (get-json-field:jut hint 'readOnlyHint'))
+    ==
+  ?:  consistent  ~
+  ~[leaf+"Dispatch and annotations agree on mixed-case HTTP verbs"]
+::
+++  test-discovery-default-types
+  ^-  tang
+  =/  schema=json
+    %-  need
+    %-  de:json:html
+    '{"type":"object","properties":{"limit":{"type":"integer","default":"250"},"flag":{"type":"boolean","default":"false"},"yes":{"type":"boolean","default":"true"},"ratio":{"type":"number","default":"1.5"},"negative":{"type":"integer","default":"-2"},"text":{"type":"string","default":"false"},"fraction":{"type":"integer","default":"1.5"},"invalid":{"type":"boolean","default":"no"},"typed":{"type":"boolean","default":false}}}'
+  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema 12)
+  =/  fields=json  (get-json-field:jut normalized 'properties')
+  ?:  ?&  =(n+'250' (get-json-field:jut (get-json-field:jut fields 'limit') 'default'))
+          =(b+.n (get-json-field:jut (get-json-field:jut fields 'flag') 'default'))
+          =(b+.y (get-json-field:jut (get-json-field:jut fields 'yes') 'default'))
+          =(n+'1.5' (get-json-field:jut (get-json-field:jut fields 'ratio') 'default'))
+          =(n+'-2' (get-json-field:jut (get-json-field:jut fields 'negative') 'default'))
+          =(s+'false' (get-json-field:jut (get-json-field:jut fields 'text') 'default'))
+          =(~ (get-json-field:jut (get-json-field:jut fields 'fraction') 'default'))
+          =(~ (get-json-field:jut (get-json-field:jut fields 'invalid') 'default'))
+          =(b+.n (get-json-field:jut (get-json-field:jut fields 'typed') 'default'))
+      ==
+    ~
+  ~[leaf+"Discovery defaults have their declared type or are omitted"]
+::
+++  test-discovery-nested-required
+  ^-  tang
+  =/  schema=json
+    %-  need
+    %-  de:json:html
+    '{"type":"object","required":["existing"],"properties":{"existing":{"type":"string","required":true},"optional":{"type":"string","required":false},"nested":{"type":"object","required":true,"properties":{"name":{"type":"string","required":true,"annotations":{"required":["example.insert"]}}}},"list":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","required":true}}}},"map":{"type":"object","additionalProperties":{"type":"object","properties":{"id":{"type":"string","required":true}}}}}}'
+  =/  normalized=json  (discovery-schema:api-tools [%o ~] schema 12)
+  =/  fields=json  (get-json-field:jut normalized 'properties')
+  =/  nested=json  (get-json-field:jut fields 'nested')
+  =/  name=json  (get-json-field:jut (get-json-field:jut nested 'properties') 'name')
+  =/  items=json  (get-json-field:jut (get-json-field:jut fields 'list') 'items')
+  =/  extra=json  (get-json-field:jut (get-json-field:jut fields 'map') 'additionalProperties')
+  ?:  ?&  =(~[s+'existing' s+'nested'] (get-json-array:jut normalized 'required'))
+          =(~[s+'name'] (get-json-array:jut nested 'required'))
+          =(~[s+'id'] (get-json-array:jut items 'required'))
+          =(~[s+'id'] (get-json-array:jut extra 'required'))
+          =(~ (get-json-field:jut (get-json-field:jut fields 'existing') 'required'))
+          =(~ (get-json-field:jut (get-json-field:jut fields 'optional') 'required'))
+          =(~ (get-json-field:jut name 'required'))
+          =(~ (get-json-field:jut name 'annotations'))
+      ==
+    ~
+  ~[leaf+"Boolean required flags become parent arrays at every object level"]
+::
+++  test-discovery-parameter-metadata
+  ^-  tang
+  =/  spec=json
+    %-  need
+    %-  de:json:html
+    '{"kind":"discovery#restDescription","schemas":{"Object":{"type":"object"}},"resources":{"items":{"methods":{"list":{"id":"items.list","httpMethod":"GET","parameters":{"q":{"description":"Search"},"tags":{"type":"string","repeated":true,"description":"Filter tags","enum":["a","b"]},"any":{"type":"any"},"object":{"$ref":"Object"}}}}}}}'
+  =/  tool=json  (tool-named (spec-to-tools:api-tools spec) 'items.list')
+  =/  fields=json  (get-json-field:jut (get-json-field:jut tool 'inputSchema') 'properties')
+  =/  tags=json  (get-json-field:jut fields 'tags')
+  =/  items=json  (get-json-field:jut tags 'items')
+  ?:  ?&  =('string' (get-json-string:jut (get-json-field:jut fields 'q') 'type'))
+          =('array' (get-json-string:jut tags 'type'))
+          =('Filter tags' (get-json-string:jut tags 'description'))
+          =('string' (get-json-string:jut items 'type'))
+          =(~[s+'a' s+'b'] (get-json-array:jut items 'enum'))
+          =(~ (get-json-field:jut items 'description'))
+          =(~ (get-json-field:jut (get-json-field:jut fields 'any') 'type'))
+          =('object' (get-json-string:jut (get-json-field:jut fields 'object') 'type'))
+      ==
+    ~
+  ~[leaf+"Parameter fallbacks preserve any/objects and arrays retain their descriptions"]
 ::
 ++  test-discovery-recursive-schema
   ^-  tang

@@ -42,8 +42,6 @@ def generate(source):
             method["scopes"] = sorted(SCOPES.intersection(method["scopes"]))
             method.pop("response", None)
             method.pop("supportsSubscription", None)
-            if method["id"] == "calendar.freebusy.query":
-                method["x-mcp-read-only"] = True
             if method["id"] == "calendar.events.insert":
                 method["request"]["$ref"] = "TlonCalendarEventCreate"
             if name in {"insert", "patch"}:

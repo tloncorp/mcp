@@ -71,6 +71,8 @@ class CalendarSmokeTest(unittest.TestCase):
         calendar = next(u for u in upstreams if u["id"] == "google-calendar")
         if calendar["url"] != MOCK_URL or not calendar["enabled"]:
             raise AssertionError("Configure the localhost mock upstream before testing")
+        if calendar.get("readOnlyPostUrls") != [MOCK_URL + "freeBusy"]:
+            raise AssertionError("Configure the mock freebusy read-only POST endpoint before testing")
         echo = rpc("call", {"name": PREFIX + "calendarList.list", "arguments": {}})["echo"]
         if echo["path"] != "/calendar/v3/users/me/calendarList":
             raise AssertionError("Calendar reads must reach the mock API before write tests")
@@ -79,6 +81,31 @@ class CalendarSmokeTest(unittest.TestCase):
         result = rpc("call", {"name": PREFIX + method, "arguments": args})["echo"]
         self.assertEqual(result["authorization"], "Bearer calendar-mock-access-token")
         return result
+
+    def check_schema_annotations(self, schema, path="inputSchema"):
+        # JSON Schema meta-validation permits defaults of the wrong type.
+        # Check their instance types explicitly, including nested request bodies.
+        if "default" in schema and "type" in schema:
+            default, kind = schema["default"], schema["type"]
+            valid = {
+                "string": isinstance(default, str),
+                "boolean": isinstance(default, bool),
+                "integer": isinstance(default, int) and not isinstance(default, bool),
+                "number": isinstance(default, (int, float)) and not isinstance(default, bool),
+                "array": isinstance(default, list),
+                "object": isinstance(default, dict),
+                "null": default is None,
+            }
+            self.assertIn(kind, valid, path)
+            self.assertTrue(valid[kind], f"{path}.default must have type {kind}")
+        if "required" in schema:
+            self.assertIsInstance(schema["required"], list, path)
+            self.assertTrue(all(isinstance(key, str) for key in schema["required"]), path)
+        for name, child in schema.get("properties", {}).items():
+            self.check_schema_annotations(child, f"{path}.properties.{name}")
+        for keyword in ("items", "additionalProperties"):
+            if isinstance(schema.get(keyword), dict):
+                self.check_schema_annotations(schema[keyword], f"{path}.{keyword}")
 
     def test_catalog_and_schemas(self):
         catalog = rpc("search", {"server": "google-calendar"})
@@ -89,10 +116,21 @@ class CalendarSmokeTest(unittest.TestCase):
                 tool = rpc("describe", {"name": PREFIX + method})
                 self.assertEqual(tool["annotations"]["readOnlyHint"], readonly)
                 self.assertNotIn('"$ref"', json.dumps(tool["inputSchema"]))
+                self.check_schema_annotations(tool["inputSchema"])
         creation = rpc("describe", {"name": PREFIX + "events.insert"})["inputSchema"]
         body = creation["properties"]["body"]
         self.assertEqual(body["required"], ["start", "end"])
         self.assertEqual(body["properties"]["attendees"]["items"]["type"], "object")
+        attendee = body["properties"]["attendees"]["items"]["properties"]
+        self.assertIs(attendee["optional"]["default"], False)
+        listing = rpc("describe", {"name": PREFIX + "events.list"})["inputSchema"]["properties"]
+        self.assertEqual(listing["maxResults"]["default"], 250)
+        discovery = json.loads(Path(__file__).with_name("discovery.json").read_text())
+        parameters = discovery["resources"]["events"]["methods"]["list"]["parameters"]
+        for name, parameter in parameters.items():
+            if parameter.get("repeated"):
+                self.assertEqual(listing[name]["type"], "array")
+                self.assertEqual(listing[name]["description"], parameter["description"])
 
     def test_reads_and_repeated_query(self):
         for method, args, path in (

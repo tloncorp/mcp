@@ -8,7 +8,7 @@
 ::
 /-  mcp-proxy
 /-  oauth
-/+  mcp-catalog
+/+  mcp-catalog, api-tool-policy
 /+  jut=json-utils, api-tools, url-utils, http-utils
 /+  default-agent, dbug, server
 |%
@@ -17,7 +17,7 @@
 --
 ::
 %-  agent:dbug
-=|  state-5:mcp-proxy
+=|  state-6:mcp-proxy
 =*  state  -
 =|  pending=(map @t @ta)
 ::  wire-id to the client's JSON-RPC id for tool results
@@ -96,7 +96,7 @@
         ==
       =?  eyre-cards  !(~(has by wex.bowl) /oauth/grants [our.bowl %oauth])
         :_(eyre-cards [%pass /oauth/grants %agent [our.bowl %oauth] %watch /grants])
-      =/  raw-state=state-5:mcp-proxy  (restore-state p.old)
+      =/  raw-state=state-6:mcp-proxy  (restore-state p.old)
       ::  ensure a client-key exists; generate if missing
       =/  ensured-key=@t
         ?~  client-key.raw-state  (gen-token eny.bowl)
@@ -135,7 +135,7 @@
         ?:  (~(has in (sy order-no-legacy)) sid)
           order-no-legacy
         [sid order-no-legacy]
-      =/  new-state=state-5:mcp-proxy
+      =/  new-state=state-6:mcp-proxy
         raw-state(client-key `ensured-key, servers patched-servers, server-order patched-order, code-mode %.y)
       ::  re-fetch specs for openapi servers (cache is non-persisted)
       =/  spec-cards=(list card)
@@ -177,25 +177,26 @@
     ::
     ++  restore-state
       |=  saved=versioned-state:mcp-proxy
-      ^-  state-5:mcp-proxy
+      ^-  state-6:mcp-proxy
       ?-  -.saved
-        %5  saved
+        %6  saved
+        %5  [%6 servers.saved server-order.saved tool-filters.saved client-key.saved internal-token.saved code-mode.saved ~]
           %4
-        [%5 servers.saved server-order.saved tool-filters.saved client-key.saved internal-token.saved %.n]
-        %3  [%5 servers.saved server-order.saved tool-filters.saved ~ ~ %.n]
-        %2  [%5 servers.saved server-order.saved ~ ~ ~ %.n]
+        [%6 servers.saved server-order.saved tool-filters.saved client-key.saved internal-token.saved %.n ~]
+        %3  [%6 servers.saved server-order.saved tool-filters.saved ~ ~ %.n ~]
+        %2  [%6 servers.saved server-order.saved ~ ~ ~ %.n ~]
       ::
           %1
         =/  new-servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
           %-  ~(run by servers.saved)
           |=(s=mcp-server-1:mcp-proxy [name.s url.s headers.s enabled.s oauth-provider.s %proxy ~])
-        [%5 new-servers server-order.saved ~ ~ ~ %.n]
+        [%6 new-servers server-order.saved ~ ~ ~ %.n ~]
       ::
           %0
         =/  new-servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
           %-  ~(run by servers.saved)
           |=(s=mcp-server-0:mcp-proxy [name.s url.s headers.s enabled.s ~ %proxy ~])
-        [%5 new-servers server-order.saved ~ ~ ~ %.n]
+        [%6 new-servers server-order.saved ~ ~ ~ %.n ~]
       ==
     --
   ::
@@ -230,6 +231,7 @@
         ?.  =(%proxy mode.mcp-server.act)  `this
         (prime-server id.act mcp-server.act)
           %config-oauth-server
+        =.  read-only-posts  (retain-post-policy id.act mcp-server.act)
         =/  existed=?  (~(has by servers) id.act)
         =.  servers  (~(put by servers) id.act mcp-server.act)
         =?  server-order  !existed
@@ -240,11 +242,13 @@
           (prime-server id.act mcp-server.act)
         `this
           %remove-server
+        =.  read-only-posts  (~(del by read-only-posts) id.act)
         =.  servers  (~(del by servers) id.act)
         =.  server-order  (skip server-order |=(s=server-id:mcp-proxy =(s id.act)))
         =.  cookies  (~(del by cookies) id.act)
         `this
           %update-server
+        =.  read-only-posts  (retain-post-policy id.act mcp-server.act)
         =.  servers  (~(put by servers) id.act mcp-server.act)
         =.  proxy-tools-cache  (~(del by proxy-tools-cache) id.act)
         ?.  =(%proxy mode.mcp-server.act)  `this
@@ -269,6 +273,17 @@
       ::
           %clear-tool-filter
         =.  tool-filters  (~(del by tool-filters) id.act)
+        `this
+      ::
+          %set-read-only-posts
+        =/  srv=(unit mcp-server:mcp-proxy)  (~(get by servers) id.act)
+        ?~  srv  `this
+        ?.  =(%openapi mode.u.srv)  `this
+        =.  read-only-posts  (~(put by read-only-posts) id.act urls.act)
+        `this
+      ::
+          %clear-read-only-posts
+        =.  read-only-posts  (~(del by read-only-posts) id.act)
         `this
       ::
           %login-server
@@ -299,6 +314,25 @@
         `this
       ==
     ::
+    ::  OAuth refreshes preserve policy only while the endpoint is unchanged.
+    ++  retain-post-policy
+      |=  [sid=server-id:mcp-proxy incoming=mcp-server:mcp-proxy]
+      ^-  (map server-id:mcp-proxy (set @t))
+      =/  previous=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
+      ?~  previous  (~(del by read-only-posts) sid)
+      ?:  ?&  =(url.u.previous url.incoming)
+              =(%openapi mode.u.previous)
+              =(%openapi mode.incoming)
+          ==
+        read-only-posts
+      (~(del by read-only-posts) sid)
+    ::
+    ++  configured-api-tools
+      |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy spec=json]
+      ^-  (list json)
+      =/  allowed=(set @t)  (fall (~(get by read-only-posts) sid) ~)
+      (configured-tools:api-tool-policy spec url.srv allowed)
+    ::
     ++  prime-server
       |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
       ^-  (quip card _this)
@@ -310,7 +344,7 @@
     ::
     ++  apply-key
       |=  new-key=@t
-      ^-  (quip card state-5:mcp-proxy)
+      ^-  (quip card state-6:mcp-proxy)
       =.  client-key  `new-key
       ::  ensure self upstream exists with the new key as its x-api-key header
       =/  sid=@tas  (self-id our.bowl)
@@ -440,7 +474,7 @@
           =/  tools=(list json)
             %^  apply-tool-filter
               sid
-              (spec-to-tools:api-tools u.spec)
+              (configured-api-tools sid u.srv u.spec)
             tool-filters
           :_  this
           (give-json:http-utils eyre-id (pairs:enjs:format ~[['tools' a+tools]]))
@@ -907,6 +941,10 @@
               ?~  oauth-provider.srv  ~
               s+(scot %tas u.oauth-provider.srv)
               ['hasCachedSpec' b+(~(has by spec-cache) sid)]
+              :-  'readOnlyPostUrls'
+              :-  %a
+              =/  allowed=(set @t)  (fall (~(get by read-only-posts) sid) ~)
+              (turn ~(tap in allowed) |=(url=@t s+url))
               :-  'toolFilter'
               =/  filt=(unit tool-filter:mcp-proxy)  (~(get by tool-filters) sid)
               ?~  filt  ~
@@ -941,7 +979,7 @@
       ?:  =(%openapi mode.srv)
         =/  spec=(unit json)  (~(get by spec-cache) sid)
         ?~  spec  ~
-        =/  raw=(list json)  (spec-to-tools:api-tools u.spec)
+        =/  raw=(list json)  (configured-api-tools sid srv u.spec)
         =/  filtered=(list json)  (apply-tool-filter sid raw tool-filters)
         =/  prefixed=(list json)  (prefix-tool-names sid filtered)
         `[sid prefixed]
@@ -1056,6 +1094,10 @@
             ['name' s+name.srv]
             ['url' s+url.srv]
             ['enabled' b+enabled.srv]
+            :-  'readOnlyPostUrls'
+            :-  %a
+            =/  allowed=(set @t)  (fall (~(get by read-only-posts) sid) ~)
+            (turn ~(tap in allowed) |=(url=@t s+url))
         ==
       =/  text=@t
         (en:json:html (pairs:enjs:format ~[['upstreams' a+list-arr]]))
@@ -2159,6 +2201,12 @@
     [%set-tool-filter `@tas`id [?:(?=(%'allow' fmode) %allow %block) tool-set]]
       %'clear-tool-filter'
     [%clear-tool-filter `@tas`((ot ~[id+so]) jon)]
+      %'set-read-only-posts'
+    =/  id=@t  ((ot ~[id+so]) jon)
+    =/  urls=(list @t)  ((ot ~[urls+(ar so)]) jon)
+    [%set-read-only-posts `@tas`id (silt urls)]
+      %'clear-read-only-posts'
+    [%clear-read-only-posts `@tas`((ot ~[id+so]) jon)]
       %'login-server'
     [%login-server `@tas`((ot ~[id+so]) jon)]
       %'set-client-key'

@@ -87,6 +87,18 @@
       code-mode=?                ::  collapse tools into 3 meta-tools
   ==
 ::
++$  state-6
+  $:  %6
+      servers=(map server-id mcp-server)
+      server-order=(list server-id)
+      tool-filters=(map server-id tool-filter)
+      client-key=(unit @t)
+      internal-token=(unit @t)
+      code-mode=?
+      ::  Operator-owned, exact POST endpoint URLs, never supplied by specs.
+      read-only-posts=(map server-id (set @t))
+  ==
+::
 +$  versioned-state
   $%  state-0
       state-1
@@ -94,6 +106,7 @@
       state-3
       state-4
       state-5
+      state-6
   ==
 ::
 +$  action
@@ -106,6 +119,8 @@
       [%refresh-spec id=server-id]
       [%set-tool-filter id=server-id =tool-filter]
       [%clear-tool-filter id=server-id]
+      [%set-read-only-posts id=server-id urls=(set @t)]
+      [%clear-read-only-posts id=server-id]
       [%set-client-key key=@t]
       [%regenerate-client-key ~]
       [%clear-client-key ~]

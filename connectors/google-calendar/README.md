@@ -19,7 +19,7 @@ to a real Google account yet.
 | `calendar.events.get` | Read an event by Google event ID | Yes |
 | `calendar.events.insert` | Create an event | No |
 | `calendar.events.patch` | Edit an event | No |
-| `calendar.freebusy.query` | Check availability across calendars | Yes |
+| `calendar.freebusy.query` | Check availability across calendars | Yes, after operator configuration below |
 
 MCP prefixes names with `google-calendar_`. Use the aggregate endpoint's
 `search`, `describe`, and `call` tools to discover and invoke them.
@@ -31,10 +31,12 @@ event metadata. Creation requires `start` and `end`; patch allows partial
 updates. These schemas guide the model; the generic proxy does not validate
 every argument against JSON Schema before forwarding it.
 
-All read operations carry `annotations.readOnlyHint=true`, including Google's
-read-only freebusy POST. Event writes carry `false`, allowing the bot's existing
-scheduled-run policy to distinguish reads from writes. The trusted schema can
-override the default HTTP-method classification with `x-mcp-read-only`.
+GET operations carry `annotations.readOnlyHint=true`. POST operations default
+to `false`, including Google's read-only freebusy POST. Operators can mark the
+exact freebusy endpoint read-only using the separate per-upstream configuration
+below. Fetched schemas cannot set this permission, and `x-mcp-read-only` is
+ignored. Event writes carry `false`, allowing the bot's existing scheduled-run
+policy to distinguish reads from writes.
 
 Event creation and editing are supported for direct user requests. The
 read-only restriction applies to scheduled/background runs, not the interactive
@@ -52,16 +54,24 @@ expansion, use `singleEvents=true` and time bounds.
 
 ## OAuth registration and rollout
 
-1. Release the updated `%mcp` desk to pilot moons first. The previous converter
+1. Audit each pilot moon's existing Discovery upstreams before installing the
+   desk. This update fixes HTTP verb handling for **all configured Discovery
+   upstreams**: an uppercase `POST`, `PATCH`, or `DELETE` that previously fell
+   back to GET will now execute the requested write. Inspect the published tool
+   catalog and OAuth scopes, remove unwanted operations from each served schema,
+   and confirm scheduled-run restrictions at the bot. `toolFilters` filter
+   catalog display; they do not block direct calls. No production inventory or
+   audit was completed as part of this implementation.
+2. Release the updated `%mcp` desk to pilot moons first. The previous converter
    exposes request bodies as strings and treats uppercase Discovery verbs as
    GET, so provider registration alone is insufficient.
-2. Publish `discovery.json` at an HTTPS URL. Pin its URL to the release commit
+3. Publish `discovery.json` at an HTTPS URL. Pin its URL to the release commit
    or another immutable deployment; do not use Google's full Discovery URL or
    a mutable branch for production. Check that the relay/moon can fetch it.
-3. Create a Google Cloud test project, enable the Google Calendar API, and
+4. Create a Google Cloud test project, enable the Google Calendar API, and
    configure an External OAuth consent screen in Testing. Add pilot Google
    accounts as test users.
-4. Create a Web application OAuth client. Register the exact redirect URI
+5. Create a Web application OAuth client. Register the exact redirect URI
    `https://oauth.test.tlon.systems/v1/callback`. For production, create a
    separate client/project with `https://oauth.tlon.io/v1/callback`.
    Select **Use this client for an AI-powered agent**. Google identifies agent
@@ -69,15 +79,54 @@ expansion, use `singleEvents=true` and time bounds.
    clients separate. Download the new client secret immediately and store it in
    the secret manager: Google only reveals/downloads it when it is created.
    See [Google's OAuth client guidance](https://support.google.com/cloud/answer/15549257#agentic-client).
-5. Set the variables in [oauth-proxy.env.example](oauth-proxy.env.example)
+6. Set the variables in [oauth-proxy.env.example](oauth-proxy.env.example)
    through the deployment's secret manager. Replace the release-commit
    placeholder. Append `google-calendar:google` to the existing `PROVIDERS`
    value so other connectors remain registered.
-6. Deploy/restart the test relay. Confirm the providers response includes
+7. Deploy/restart the test relay. Confirm the providers response includes
    `google-calendar`, then connect through Tlon's existing connector screen.
    The existing Google template supplies offline access, consent prompting,
    incremental authorization, and PKCE. Client secrets stay on the relay.
-7. Complete the live pilot checks below before enabling production users.
+8. Configure freebusy's read-only endpoint on each pilot moon as described
+   below. Confirm its annotation through `describe`; then complete the live
+   pilot checks before enabling production users.
+
+### Read-only availability POST
+
+After the `google-calendar` upstream exists, an operator can allow its fixed
+freebusy endpoint to be classified read-only:
+
+```dojo
+:mcp-proxy &mcp-proxy-action [%set-read-only-posts %google-calendar (silt ~['https://www.googleapis.com/calendar/v3/freeBusy'])]
+```
+
+This setting is held separately from the fetched schema and the OAuth provider
+descriptor. The method must be POST with a fixed path, and its resolved endpoint
+must match the configured URL exactly using the operator's upstream base URL.
+Query parameters and request bodies do not grant read-only permission. Other
+POSTs, PATCHes, and DELETEs remain classified as writes.
+
+The authenticated `/apps/mcp/api` endpoint accepts the equivalent action:
+
+```json
+{"action":"set-read-only-posts","id":"google-calendar","urls":["https://www.googleapis.com/calendar/v3/freeBusy"]}
+```
+
+The server configuration exposes the setting as `readOnlyPostUrls`. It starts
+empty after migration and is cleared when the upstream is removed or its URL
+or mode changes. OAuth credential refresh cannot change it. To remove the
+exception manually:
+
+```dojo
+:mcp-proxy &mcp-proxy-action [%clear-read-only-posts %google-calendar]
+```
+
+Without this setting, interactive availability queries still work, but the
+scheduled-run policy treats them as writes and blocks them.
+
+Apply policy or schema changes between scheduled runs and start a fresh bot
+session afterwards. The bot caches described tool permissions for its session;
+changing the proxy's policy does not revoke permissions already cached there.
 
 ### Scopes
 
@@ -117,17 +166,23 @@ ship:
 
 ```dojo
 -test /=mcp=/tests/mcp-libraries ~
+-test /=mcp=/tests/api-tool-policy ~
 ```
 
 The suite covers Discovery bodies/ref expansion, bounded recursive schemas,
-POST/PATCH verbs, repeated query keys, and read-only annotations, as well as
-existing API/OAuth helpers.
+POST/PATCH verbs, repeated query keys, schema defaults and required fields,
+and read-only annotations, as well as existing API/OAuth helpers.
 
-Local validation on 2026-10-13: all 17 native tests passed on an isolated Urbit
-4.3 fake ship, and the `%mcp-server`, `%mcp-proxy`, and `%oauth` agents compiled
-and installed. All seven generated input schemas passed JSON Schema 2020-12
-meta-validation. The five smoke tests below passed; the transport test is an
-expected failure. The desk was assembled using the exact dependency pins in
+Local validation on 2026-10-13: all 33 native tests passed (22 library tests and
+11 operator-policy tests) on an isolated Urbit 4.3 fake ship. The updated proxy
+compiled and migrated its existing state with no POST exceptions; explicit
+grant/clear, endpoint-change clearing, the JSON configuration action, and
+restart persistence were checked. The `%mcp-server` and `%oauth` agents remain
+installed from the initial validation. All seven actual MCP input schemas
+passed JSON Schema 2020-12 meta-validation, and all 16 emitted default values
+validated against their property schemas. The five smoke tests below passed;
+the transport test is an expected failure. The desk was assembled using the
+exact dependency pins in
 `build.zig`; the Zig 0.15.2 build runner encountered macOS system-library linker
 errors on this machine, so the standard Zig build was not validated here.
 
@@ -145,6 +200,7 @@ and mock upstream:
 :mcp-proxy &mcp-proxy-action [%set-client-key 'calendar-local-test']
 :oauth &oauth-action [%receive-grant %google-calendar ['calendar-mock-access-token' ~ 'Bearer' ~ 'calendar.events' %google-calendar]]
 :mcp-proxy &mcp-proxy-action [%config-oauth-server %google-calendar ['Google Calendar' 'http://127.0.0.1:18891/calendar/v3/' ~ %.y `%google-calendar %openapi `'http://127.0.0.1:18891/discovery.json']]
+:mcp-proxy &mcp-proxy-action [%set-read-only-posts %google-calendar (silt ~['http://127.0.0.1:18891/calendar/v3/freeBusy'])]
 ```
 
 After the schema fetch completes, run:
@@ -154,7 +210,8 @@ python3 connectors/google-calendar/smoke_test.py test \
   --endpoint http://127.0.0.1:18781/apps/mcp/mcp
 ```
 
-Five tests cover the exact tool catalog, full schema descriptions, bearer
+Five tests cover the exact tool catalog, full schema descriptions, correctly
+typed defaults, array-level parameter descriptions, bearer
 injection, reads, event creation/patching, availability, and rejection of an
 omitted delete operation. One expected failure records an existing Urbit
 transport limitation: its `cttp` URL parser decodes an escaped slash inside a
