@@ -58,17 +58,7 @@
     =/  initial-key=@t  (gen-token eny.bowl)
     =.  code-mode  %.y
     =.  client-key  `initial-key
-    =/  sid=@tas  (self-id our.bowl)
-    =/  self-url=@t  (build-self-url our.bowl now.bowl)
-    =/  auth-header=header:mcp-proxy  ['x-api-key' initial-key]
-    =/  self-srv=mcp-server:mcp-proxy
-      :*  'Urbit MCP server'
-          self-url
-          ~[auth-header]
-          %.y  ~  %proxy  ~
-      ==
-    =.  servers  (~(put by servers) sid self-srv)
-    =.  server-order  [sid server-order]
+    =^  self-cards  state  (ensure-self state our.bowl now.bowl)
     =/  base=(list card)
       :~  [%pass /eyre/connect %arvo %e %connect [~ /apps/mcp/api] %mcp-proxy]
           [%pass /eyre/mcp %arvo %e %connect [~ /apps/mcp/mcp] %mcp-proxy]
@@ -79,7 +69,7 @@
     =/  prime-cards=(list card)
       (prime-proxy-cards servers server-order cookies our.bowl now.bowl)
     :_  this
-    (weld base prime-cards)
+    :(weld base self-cards prime-cards)
   ::
   ++  on-save  !>(state)
   ::
@@ -107,36 +97,34 @@
       =/  legacy=(unit mcp-server:mcp-proxy)  (~(get by servers.raw-state) %urbit-mcp)
       =/  current=(unit mcp-server:mcp-proxy)  (~(get by servers.raw-state) sid)
       =/  prev=(unit mcp-server:mcp-proxy)  ?~(current legacy current)
-      =/  url=@t
-        ?~  prev  (build-self-url our.bowl now.bowl)
-        ::  refresh stale derivations: the old hardcoded port, or a
-        ::  boot-time eyre ports scry that ran before eyre bound a real
-        ::  port and produced a portless or port-0 loopback
+      ::  Discard invalid derived URLs while restoring saved state.
+      =.  prev
+        ?~  prev  ~
         ?:  ?|  =('http://localhost:8080/mcp' url.u.prev)
                 =('http://localhost/mcp' url.u.prev)
                 =('http://localhost:0/mcp' url.u.prev)
             ==
-          (build-self-url our.bowl now.bowl)
-        url.u.prev
-      =/  auth-header=header:mcp-proxy  ['x-api-key' ensured-key]
-      =/  self-srv=mcp-server:mcp-proxy
-        :*  'Urbit MCP server'
-            url
-            ~[auth-header]
-            %.y  ~  %proxy  ~
-        ==
+          ~
+        prev
       =/  servers-no-legacy=(map server-id:mcp-proxy mcp-server:mcp-proxy)
         (~(del by servers.raw-state) %urbit-mcp)
       =/  patched-servers=(map server-id:mcp-proxy mcp-server:mcp-proxy)
-        (~(put by servers-no-legacy) sid self-srv)
+        ?~  prev  (~(del by servers-no-legacy) sid)
+        (~(put by servers-no-legacy) sid u.prev)
       =/  order-no-legacy=(list server-id:mcp-proxy)
-        (skip server-order.raw-state |=(s=server-id:mcp-proxy =(s %urbit-mcp)))
-      =/  patched-order=(list server-id:mcp-proxy)
-        ?:  (~(has in (sy order-no-legacy)) sid)
-          order-no-legacy
-        [sid order-no-legacy]
+        %+  skip  server-order.raw-state
+        |=  s=server-id:mcp-proxy
+        ?|  =(s %urbit-mcp)
+            &(?=(~ prev) =(s sid))
+        ==
       =/  new-state=state-5:mcp-proxy
-        raw-state(client-key `ensured-key, servers patched-servers, server-order patched-order, code-mode %.y)
+        %=  raw-state
+          client-key  `ensured-key
+          servers  patched-servers
+          server-order  order-no-legacy
+          code-mode  %.y
+        ==
+      =^  self-cards  new-state  (ensure-self new-state our.bowl now.bowl)
       ::  re-fetch specs for openapi servers (cache is non-persisted)
       =/  spec-cards=(list card)
         (fetch-specs servers.new-state)
@@ -159,7 +147,7 @@
         ?~  oauth-provider.srv  ~
         `[%pass /prime-oauth/[sid] %arvo %b %wait (add now.bowl ~s10)]
       :_  this(state new-state)
-      :(weld eyre-cards sync-cards spec-cards prime-cards oauth-prime-cards)
+      :(weld eyre-cards sync-cards self-cards spec-cards prime-cards oauth-prime-cards)
     ::
     ++  fetch-specs
       |=  configured=(map server-id:mcp-proxy mcp-server:mcp-proxy)
@@ -312,24 +300,9 @@
       |=  new-key=@t
       ^-  (quip card state-5:mcp-proxy)
       =.  client-key  `new-key
-      ::  ensure self upstream exists with the new key as its x-api-key header
-      =/  sid=@tas  (self-id our.bowl)
-      =/  prev=(unit mcp-server:mcp-proxy)  (~(get by servers) sid)
-      =/  url=@t
-        ?~  prev  (build-self-url our.bowl now.bowl)
-        url.u.prev
-      =/  auth-header=header:mcp-proxy  ['x-api-key' new-key]
-      =/  self-srv=mcp-server:mcp-proxy
-        :*  'Urbit MCP server'
-            url
-            ~[auth-header]
-            %.y  ~  %proxy  ~
-        ==
-      =.  servers  (~(put by servers) sid self-srv)
-      =?  server-order  !(~(has in (sy server-order)) sid)
-        [sid server-order]
+      =^  self-cards  state  (ensure-self state our.bowl now.bowl)
       :_  state
-      ~[(sync-server-key-card our.bowl new-key)]
+      [(sync-server-key-card our.bowl new-key) self-cards]
     ::
     ++  do-login
       |=  [sid=server-id:mcp-proxy srv=mcp-server:mcp-proxy]
@@ -1235,6 +1208,9 @@
           [%retry-timeout @ ~]
         retry-timeout
       ::
+          [%self-port ~]
+        self-port
+      ::
       ::  prime-oauth: deferred post-load prime for one oauth-linked
       ::  proxy upstream, with the bearer token attached (safe to scry
       ::  %oauth now that the desk is fully live). fire-and-forget like
@@ -1295,6 +1271,21 @@
           [%give %fact ~[path] %http-response-data !>(body)]
           [%give %kick ~[path] ~]
       ==
+    ::
+    ++  self-port
+      ^-  (quip card _this)
+      ?.  ?=([%behn %wake *] sign)  `this
+      ::  Clearing the key while waiting keeps the native server disconnected.
+      ?:  =(~ client-key)  `this
+      =^  cards  state  (ensure-self state our.bowl now.bowl)
+      ?^  cards  [cards this]
+      =/  sid=@tas  (self-id our.bowl)
+      =/  srv  (~(got by servers) sid)
+      =/  prime=(unit card)
+        (prime-one-proxy-card sid srv (~(get by cookies) sid) our.bowl now.bowl)
+      :_  this
+      ?~  prime  ~
+      ~[u.prime]
     ::
     ++  prime-oauth
       ^-  (quip card _this)
@@ -1822,17 +1813,43 @@
       !>(key)
   ==
 ::
+::  Register the native upstream once Eyre has a usable port.
+::
+++  ensure-self
+  |=  [state=state-5:mcp-proxy our=@p now=@da]
+  ^-  (quip card:agent:gall state-5:mcp-proxy)
+  ?~  client-key.state  [~ state]
+  =/  sid=@tas  (self-id our)
+  =/  prev=(unit mcp-server:mcp-proxy)  (~(get by servers.state) sid)
+  =/  url=(unit @t)
+    ?~  prev  (build-self-url our now)
+    `url.u.prev
+  ?~  url
+    :_  state
+    ~[[%pass /self-port %arvo %b %wait (add now ~s1)]]
+  =/  self-srv=mcp-server:mcp-proxy
+    :*  'Urbit MCP server'
+        u.url
+        ~[['x-api-key' u.client-key.state]]
+        %.y  ~  %proxy  ~
+    ==
+  =.  servers.state  (~(put by servers.state) sid self-srv)
+  =?  server-order.state  !(~(has in (sy server-order.state)) sid)
+    [sid server-order.state]
+  [~ state]
+::
 ::  derive the self-loopback URL by scrying eyre for the bound port
 ::
 ++  build-self-url
   |=  [our=@p now=@da]
-  ^-  @t
+  ^-  (unit @t)
   =/  res=(unit [insecure=@ud secure=(unit @ud)])
     =/  m  (mule |.(.^([insecure=@ud secure=(unit @ud)] %e /(scot %p our)/ports/(scot %da now))))
     ?:(?=(%& -.m) `p.m ~)
-  ?~  res  'http://localhost/mcp'
+  ?~  res  ~
   =/  port=@ud  insecure.u.res
-  (rap 3 ~['http://localhost:' (crip (a-co:co port)) '/mcp'])
+  ?:  =(0 port)  ~
+  `(rap 3 ~['http://localhost:' (crip (a-co:co port)) '/mcp'])
 ::
 ::  derive the self upstream id from the ship name (no leading tilde)
 ::
