@@ -442,7 +442,7 @@
     ==
   ::  OpenAPI 3.0: use servers[0].url
   =/  servers=json  (get-json-field:jut spec 'servers')
-  ?.  ?=(%a -.servers)  ''
+  ?.  ?=([%a *] servers)  ''
   ?~  p.servers  ''
   (get-json-string:jut i.p.servers 'url')
 ::

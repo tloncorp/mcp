@@ -50,6 +50,41 @@
     ~
   ~[leaf+"OpenAPI operation IDs name the generated tools"]
 ::
+++  test-openapi-base-url-without-servers
+  ^-  tang
+  =/  specs=(list @t)
+    :~  '{"openapi":"3.1.0"}'
+        '{"openapi":"3.1.0","servers":null}'
+        '{"openapi":"3.1.0","servers":[]}'
+    ==
+  |-
+  ?~  specs  ~
+  =/  spec=json  (need (de:json:html i.specs))
+  ?.  ?&  =('' (get-spec-base-url:api-tools spec))
+          =('' (resolve-base-url:api-tools spec ''))
+          =('https://example.test' (resolve-base-url:api-tools spec 'https://example.test'))
+      ==
+    ~[leaf+"Absent, null, and empty servers use the configured base URL"]
+  $(specs t.specs)
+::
+++  test-openapi-request-without-servers
+  ^-  tang
+  =/  spec=json
+    %-  need
+    %-  de:json:html
+    '{"openapi":"3.1.0","paths":{"/api/customers":{"get":{"operationId":"listCustomers"}}}}'
+  =/  op  (need (find-operation:api-tools spec 'listCustomers'))
+  =/  base=@t  (resolve-base-url:api-tools spec 'https://example.test')
+  =/  headers=(list [@t @t])  ~[['Authorization' 'Bearer test-token']]
+  =/  =request:http  (build-request:api-tools base op [%o ~] headers)
+  ?:  ?&  =(%'GET' method.request)
+          =('https://example.test/api/customers' url.request)
+          =(headers header-list.request)
+          =(~ body.request)
+      ==
+    ~
+  ~[leaf+"OpenAPI requests use the configured URL and auth without schema servers"]
+::
 ++  test-discovery-tools
   ^-  tang
   =/  spec=json
