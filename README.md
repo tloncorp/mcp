@@ -113,6 +113,39 @@ http_headers = { "X-Api-Key" = "<your-key>" }
 
 ## Usage
 
+### OAuth tokens for automations
+
+`GET /apps/mcp/api/oauth/token/{provider-id}` returns the complete stored OAuth
+grant for a provider, such as `asana`. Authenticate with the same
+`X-Api-Key` used by the MCP endpoints; a ship login cookie alone does not
+authorize this route.
+
+```bash
+curl --fail --silent --show-error \
+  -H "X-Api-Key: $MCP_API_KEY" \
+  "https://your-ship.example/apps/mcp/api/oauth/token/asana"
+```
+
+```json
+{
+  "providerId": "asana",
+  "accessToken": "<access token>",
+  "refreshToken": "<refresh token>",
+  "tokenType": "Bearer",
+  "scopes": "",
+  "expiresAt": "~2026.10.20..12.00.00..0000"
+}
+```
+
+`refreshToken` and `expiresAt` are `null` when absent. `expiresAt` uses the
+desk's Urbit `@da` date format. This endpoint returns the grant as stored,
+including expired grants, without refreshing it. OAuth client configuration
+is separate from the grant. The ship refreshes grants automatically; fetch the
+grant when the automation needs it. Responses include `Cache-Control: no-store`.
+
+The endpoint returns `401` for a missing or invalid API key, `404` when no grant
+can be read for the provider, and `405` for methods other than `GET`.
+
 ### Tools
 
 Just ask! You can see the default tools [here](./desk/fil/mcp/tools).

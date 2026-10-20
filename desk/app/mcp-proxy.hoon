@@ -355,6 +355,8 @@
           (some (as-octs:mimes:html 'not found'))
         ==
       =/  api-path=(list @t)  t.t.t.site
+      ?:  ?=([%oauth %token @ ~] api-path)
+        (handle-oauth-token eyre-id req `@tas`i.t.t.api-path)
       ?.  authenticated.req
         :_  this
         %+  give-simple-payload:app:server  eyre-id
@@ -370,6 +372,53 @@
         ~[['content-type' 'text/plain']]
         (some (as-octs:mimes:html 'method not allowed'))
       ==
+    ::
+    ++  handle-oauth-token
+      |=  [eyre-id=@ta req=inbound-request:eyre pid=provider-id:oauth]
+      ^-  (quip card _this)
+      =/  headers=(list [@t @t])
+        :~  ['content-type' 'application/json']
+            ['cache-control' 'no-store']
+            ['pragma' 'no-cache']
+        ==
+      ?.  (check-client-key req)
+        :_  this
+        %-  give-http:http-utils
+        :^  eyre-id  401
+          (snoc headers ['www-authenticate' 'X-Api-Key'])
+        `(as-octs:mimes:html '{"error":"missing or invalid x-api-key"}')
+      ?.  =(%'GET' method.request.req)
+        :_  this
+        %-  give-http:http-utils
+        :^  eyre-id  405
+          (snoc headers ['allow' 'GET'])
+        `(as-octs:mimes:html '{"error":"method not allowed"}')
+      =/  has=?
+        .^(? %gx /(scot %p our.bowl)/oauth/(scot %da now.bowl)/has-grant/[pid]/noun)
+      ?.  has
+        :_  this
+        %-  give-http:http-utils
+        :^  eyre-id  404  headers
+        `(as-octs:mimes:html '{"error":"grant not found"}')
+      =/  gra=grant:oauth
+        .^(grant:oauth %gx /(scot %p our.bowl)/oauth/(scot %da now.bowl)/grant/[pid]/noun)
+      =/  jon=json
+        %-  pairs:enjs:format
+        :~  ['providerId' s+provider-id.gra]
+            ['accessToken' s+access-token.gra]
+            :-  'refreshToken'
+            ?~  refresh-token.gra  ~
+            s+u.refresh-token.gra
+            ['tokenType' s+token-type.gra]
+            ['scopes' s+scopes.gra]
+            :-  'expiresAt'
+            ?~  expires-at.gra  ~
+            s+(scot %da u.expires-at.gra)
+        ==
+      :_  this
+      %-  give-http:http-utils
+      :^  eyre-id  200  headers
+      `(as-octs:mimes:html (en:json:html jon))
     ::
     ++  handle-get
       |=  [eyre-id=@ta site=(list @t)]
