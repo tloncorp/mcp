@@ -41,7 +41,7 @@ Note that this will configure a hard-coded cookie which will eventually expire. 
 ### 1. Build and Install
 
 - *Requires a running [Urbit](https://docs.urbit.org/get-on-urbit) ship, real or fake, running on a machine you have terminal access to.*
-- *Requires [Zig](https://ziglang.org/download/) 0.15 or newer. Make sure `zig version` works.*
+- *Requires [just](https://github.com/casey/just), [mikefarah/yq](https://github.com/mikefarah/yq), `git`, `rsync` and, for `just commit`, `socat`.*
 
 Create and mount the desk on your Urbit ship:
 
@@ -50,11 +50,11 @@ Create and mount the desk on your Urbit ship:
 > |mount %mcp
 ```
 
-In the `urbit-mcp` folder, run `zig build`. By default this will install dependencies into `/zig-out` in this folder. Use `--prefix`/`-p` to choose another output directory, and use the `-Ddesk` option to additionally replace the contents of your ship's desk with your source desk.
+In the `urbit-mcp` folder, run `just install`, which assembles the desk in `desk-out/` and copies it into the mounted desk:
 
 ```bash
 $ cd urbit-mcp
-$ zig build -Ddesk=~/path/to/zod/mcp
+$ just install ~/path/to/zod/mcp
 ```
 
 ```dojo
@@ -207,8 +207,9 @@ git rebase --exec "true" HEAD~N
 
 ### Build Commands
 
-- `zig build` - Build `/desk` and dependencies into `/zig-out`
-- `zig build -p ~/path/to/output` - Build into the selected install prefix
-- `zig build clean` - Remove the install prefix
-- `zig build clear` - Remove the install prefix and cached dependencies from `.zig-cache/desk-deps`
-- `zig build -Ddesk=~/path/to/desk` - Build, clean the target desk directory, and copy the install prefix into it; supports absolute and relative paths
+- `just fetch` - Fetch the files listed in `deps.yaml` into `desk-deps/`
+- `just build` - Run `fetch`, then lay `desk-deps/` and `/desk` into `desk-out/`
+- `just install ~/path/to/desk` - Run `build`, then copy `desk-out/` into a mounted desk; files already there are kept
+- `just commit ~/path/to/desk` - Run `install`, then ask the running ship to commit that desk
+- `just clean` - Remove `desk-out/`
+- `just distclean` - Also remove `desk-deps/` and the fetch cache

@@ -1,0 +1,46 @@
+# Files the desk imports but does not own, pinned by commit.
+#
+# `just fetch` copies each listed file into desk-deps/, with `export` stripped
+# from its path. `rev` must be a full commit hash: a single commit is fetched
+# shallowly, and the hash is also the integrity check.
+
+base:
+  url: https://github.com/urbit/urbit.git
+  rev: 5a187fededc4582a34fcd6055c67bb63e0917b94
+  export: pkg/base-dev
+  files:
+    - lib/dbug.hoon
+    - lib/default-agent.hoon
+    - lib/server.hoon
+    - lib/skeleton.hoon
+    - lib/strand.hoon
+    - lib/strandio.hoon
+    - lib/test.hoon
+    - lib/verb.hoon
+    - mar/bill.hoon
+    - mar/hoon.hoon
+    - mar/json.hoon
+    - mar/kelvin.hoon
+    - mar/mime.hoon
+    - mar/noun.hoon
+    - mar/ship.hoon
+    - mar/sole/action.hoon
+    - mar/sole/effect.hoon
+    - mar/txt.hoon
+    - sur/sole.hoon
+    - sur/spider.hoon
+    - sur/verb.hoon
+
+arvo:
+  url: https://github.com/urbit/urbit.git
+  rev: 5a187fededc4582a34fcd6055c67bb63e0917b94
+  export: pkg/arvo
+  files:
+    - lib/pretty-file.hoon
+
+tlon:
+  url: https://github.com/tloncorp/tlon-apps.git
+  rev: 9f0c94771e4773567a2f55a727ffa31b0f6e8e9f
+  export: desk
+  files:
+    - lib/test-agent.hoon
