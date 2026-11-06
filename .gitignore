@@ -1,10 +1,11 @@
 # build
 .peru
-.zig-cache
+desk-out
+desk-deps
+.deps-cache
 .tags
 dist
 dist-dev
-zig-out
 desk/web
 # claude
 .claude
