@@ -544,7 +544,7 @@
         %-  give-http:http-utils
         :^  eyre-id  204
           :~  cors
-              ['access-control-allow-methods' 'GET, POST, DELETE, OPTIONS']
+              ['access-control-allow-methods' 'POST, DELETE, OPTIONS']
               ['access-control-allow-headers' 'Content-Type, Accept, Authorization, Mcp-Session-Id, X-Api-Key']
               ['access-control-expose-headers' 'Mcp-Session-Id']
               ['access-control-max-age' '86400']
@@ -565,7 +565,16 @@
         :^  eyre-id  401
           ~[cors ['content-type' 'application/json'] ['www-authenticate' 'X-Api-Key']]
         (some (as-octs:mimes:html '{"error":"missing or invalid x-api-key"}'))
-      ::  non-POST: return 200 empty (GET SSE not supported)
+      ::  no GET SSE stream: the spec requires 405 here. a 2xx makes
+      ::  streamable-http clients treat the empty body as a stream that
+      ::  closed, and reconnect every second for as long as they are open.
+      ?:  =(%'GET' method.request.req)
+        :_  this
+        %-  give-http:http-utils
+        :^  eyre-id  405
+          ~[cors ['allow' 'POST, DELETE, OPTIONS']]
+        ~
+      ::  other non-POST, such as DELETE: return 200 empty
       ?.  =(%'POST' method.request.req)
         :_  this
         (give-http:http-utils eyre-id 200 ~[cors] ~)
