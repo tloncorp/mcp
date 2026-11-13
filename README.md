@@ -41,7 +41,7 @@ Note that this will configure a hard-coded cookie which will eventually expire. 
 ### 1. Build and Install
 
 - *Requires a running [Urbit](https://docs.urbit.org/get-on-urbit) ship, real or fake, running on a machine you have terminal access to.*
-- *Requires [just](https://github.com/casey/just), [mikefarah/yq](https://github.com/mikefarah/yq), `git`, `rsync` and, for `just commit`, `socat`.*
+- *Requires [just](https://github.com/casey/just), [mikefarah/yq](https://github.com/mikefarah/yq), `git`, `rsync`, `python3` and, for `just commit`, `socat`.*
 
 Create and mount the desk on your Urbit ship:
 
@@ -50,7 +50,7 @@ Create and mount the desk on your Urbit ship:
 > |mount %mcp
 ```
 
-In the `urbit-mcp` folder, run `just install`, which assembles the desk in `desk-out/` and copies it into the mounted desk:
+In the `urbit-mcp` folder, run `just install`, which assembles the desk in `desk-out/` and replaces the mounted desk with it, deleting anything else there:
 
 ```bash
 $ cd urbit-mcp
@@ -207,9 +207,10 @@ git rebase --exec "true" HEAD~N
 
 ### Build Commands
 
-- `just fetch` - Fetch the files listed in `deps.yaml` into `desk-deps/`
+- `just fetch` - Fetch the files listed in `desk-deps.yaml` into `desk-deps/`
 - `just build` - Run `fetch`, then lay `desk-deps/` and `/desk` into `desk-out/`
-- `just install ~/path/to/desk` - Run `build`, then copy `desk-out/` into a mounted desk; files already there are kept
-- `just commit ~/path/to/desk` - Run `install`, then ask the running ship to commit that desk
+- `just install ~/path/to/desk` - Run `build`, then replace a mounted desk with `desk-out/`, deleting everything else there
+- `just install-dev ~/path/to/desk` - Run `build`, then copy `desk-out/` into a mounted desk; files already there are kept
+- `just commit ~/path/to/desk` - Run `install-dev`, then ask the running ship to commit that desk
 - `just clean` - Remove `desk-out/`
 - `just distclean` - Also remove `desk-deps/` and the fetch cache

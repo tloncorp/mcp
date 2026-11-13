@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
-# Fetch the files listed in deps.yaml, at their pinned commits, into desk-deps/.
+# Fetch the files listed in desk-deps.yaml, at their pinned commits, into desk-deps/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-deps=deps.yaml out=desk-deps cache=.deps-cache
+deps=desk-deps.yaml out=desk-deps cache=.deps-cache
 
 # Two unrelated tools are called yq; this needs the Go one.
 yq --version 2>/dev/null | grep -q mikefarah ||
   { echo "fetch needs mikefarah/yq v4 (https://github.com/mikefarah/yq)" >&2; exit 1; }
 
-rm -rf "$out" && mkdir -p "$out"
+# Runs take turns, and so does the build that reads $out, which takes this
+# lock too: git cannot share a cache repository, and $out is replaced below.
+# The lock is on the descriptor, which the kernel closes when this exits.
+mkdir -p "$cache"
+exec 9>>"$cache/lock"
+python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)'
+
+# A build waiting on the lock reads $out next, so a run that fails must leave
+# the last complete one: fetch aside, and replace $out only at the end.
+stage=$cache/stage
+rm -rf "$stage" && mkdir "$stage"
 for name in $(yq 'keys | .[]' "$deps"); do
   url=$(name=$name yq '.[strenv(name)].url' "$deps")
   rev=$(name=$name yq '.[strenv(name)].rev' "$deps")
@@ -22,7 +32,7 @@ for name in $(yq 'keys | .[]' "$deps"); do
   [[ $rev =~ ^[0-9a-f]{40}$ ]] ||
     { echo "$deps: $name: rev must be a full commit hash" >&2; exit 1; }
   for file in "${files[@]}"; do
-    [[ ! -e $out/$file ]] ||
+    [[ ! -e $stage/$file ]] ||
       { echo "$deps: $name: $file is already provided by an earlier entry" >&2; exit 1; }
   done
 
@@ -31,6 +41,7 @@ for name in $(yq 'keys | .[]' "$deps"); do
   git init --quiet "$repo"
   git -C "$repo" cat-file -e "$rev^{commit}" 2>/dev/null ||
     git -C "$repo" fetch --quiet --depth 1 --filter=blob:none "$url" "$rev"
-  git -C "$repo" archive "$rev:$export_dir" "${files[@]}" | tar -x -C "$out"
+  git -C "$repo" archive "$rev:$export_dir" "${files[@]}" | tar -x -C "$stage"
   echo "$name: ${#files[@]} files at ${rev:0:12}"
 done
+rm -rf "$out" && mv "$stage" "$out"

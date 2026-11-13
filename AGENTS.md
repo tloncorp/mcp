@@ -2,15 +2,18 @@
 
 ## Project Structure & Module Organization
 
-This repository implements an Urbit Model Context Protocol server. Production Hoon source lives under `desk/`: the Gall agent is `desk/app/mcp-server.hoon`, shared libraries are in `desk/lib/`, structures in `desk/sur/`, marks in `desk/mar/`, and install threads in `desk/ted/`. MCP tools, prompts, resources, and templates are organized under `desk/fil/mcp/`. CI workflows live in `.github/workflows/`. Treat generated `desk-out/`, `desk-deps/` and `.deps-cache/` contents as build artifacts; edit `desk/` or `deps.yaml` instead.
+This repository implements an Urbit Model Context Protocol server. Production Hoon source lives under `desk/`: the Gall agent is `desk/app/mcp-server.hoon`, shared libraries are in `desk/lib/`, structures in `desk/sur/`, marks in `desk/mar/`, and install threads in `desk/ted/`. MCP tools, prompts, resources, and templates are organized under `desk/fil/mcp/`. CI workflows live in `.github/workflows/`. Treat generated `desk-out/`, `desk-deps/` and `.deps-cache/` contents as build artifacts; edit `desk/` or `desk-deps.yaml` instead.
 
 ## Build, Test, and Development Commands
 
-- `just build` assembles `desk-deps/` (pinned upstream files listed in `deps.yaml`) plus `desk/` into `desk-out/`. It needs `just`, `git` and mikefarah's `yq`.
-- `just install ~/path/to/ship/mcp` rebuilds and copies into a mounted ship desk for local integration testing. Files already there are kept.
-- `just commit ~/path/to/ship/mcp` also asks the running ship to commit that desk.
+- `just build` assembles `desk-deps/` (pinned upstream files listed in `desk-deps.yaml`) plus `desk/` into `desk-out/`. It needs `just`, `git`, `rsync`, `python3` and mikefarah's `yq`. Parallel builds in one checkout are safe: they take turns under a lock in `.deps-cache/`.
+- `just install ~/path/to/ship/mcp` rebuilds and replaces a mounted ship desk for local integration testing. Everything else in the mount is deleted.
+- `just install-dev ~/path/to/ship/mcp` does the same without deleting: files already in the mount are kept.
+- `just commit ~/path/to/ship/mcp` runs `install-dev`, then asks the running ship to commit that desk.
 - `just clean` removes `desk-out/`.
 - `just distclean` also removes fetched dependencies and the fetch cache.
+
+Agents: during development, deploy with `just install-dev` or `just commit`. Do not run `just install` unless the user explicitly asks for it: it deletes every file in the mounted desk that is not part of the build.
 
 After deploying to a running ship, commit the target desk (`|commit %mcp`) to compile changes. If this is a new ship, also install the desk (`|install our %mcp`).
 
