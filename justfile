@@ -5,22 +5,73 @@ out := "desk-out"
 # without a docked runtime.
 click := "scripts/click"
 
-# Assemble the desk: the files fetched from deps.yaml, then this desk on top.
+# Assemble the desk: the files fetched from desk-deps.yaml, then this desk on top.
 build: fetch
-    rm -rf {{ quote(out) }}
-    mkdir -p {{ quote(out) }}
-    cp -R desk-deps/. desk/. {{ quote(out) }}/
-
-# Copy the assembled desk into a mounted desk. Files already there are kept.
-install desk: build
-    test -d {{ quote(desk) }} || { echo "desk mount '{{ desk }}' does not exist" >&2; exit 1; }
-    rsync --recursive --checksum {{ quote(out) }}/ {{ quote(desk) }}/
-
-# Install into a mounted desk, then ask the running ship to commit it.
-commit desk: (install desk)
     #!/usr/bin/env bash
     set -euo pipefail
-    mount=$(cd {{ quote(desk) }} && pwd)
+    # Builds take turns, under the lock that fetch-deps.sh takes to write
+    # desk-deps/. The lock is on the descriptor, which the kernel closes when
+    # this exits.
+    mkdir -p .deps-cache
+    exec 9>>.deps-cache/lock
+    python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)'
+    # Whoever ran an earlier build may still be reading the output, which is
+    # not under the lock, so the desk is built aside and the output updated in
+    # place: rsync leaves files that have not changed untouched.
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    mkdir "$tmp/desk"
+    # A file with no Clay mark fails the desk commit outright, so Finder's
+    # .DS_Store must stay out. The desk's own files go second and win on any
+    # overlap.
+    rsync -aL --exclude=.DS_Store desk-deps/ "$tmp/desk/"
+    rsync -aL --exclude=.DS_Store desk/ "$tmp/desk/"
+    mkdir -p {{ quote(out) }}
+    # Everything else in the output is deleted, so it must not hold the sources.
+    dest=$(cd {{ quote(out) }} && pwd -P) here=$(pwd -P)
+    [[ $dest != / && $here/ != "$dest"/* && $dest/ != "$here"/desk/* && $dest/ != "$here"/desk-deps/* ]] ||
+      { echo "refusing to assemble into $dest: the build would delete its own sources" >&2; exit 1; }
+    rsync -a --delete --checksum "$tmp/desk/" "$dest/"
+
+# Replace a mounted desk with the assembled one, deleting everything else there.
+install desk: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    desk={{ quote(desk) }}
+    # just runs recipes from this directory; the path is relative to the caller's.
+    mount=$(cd {{ quote(invocation_directory()) }} && cd "$desk" 2>/dev/null && pwd) ||
+      { echo "desk mount '$desk' does not exist" >&2; exit 1; }
+    # Everything else in the target is deleted, so it has to be a desk mount:
+    # a directory in a pier, named as a desk (which rules out the pier's .urb).
+    [[ $(basename "$mount") =~ ^[a-z][a-z0-9-]*$ && -d $mount/../.urb ]] ||
+      { echo "'$desk' is not a desk mounted in a pier" >&2; exit 1; }
+    # Under the build lock, so that no other build changes the desk mid-copy.
+    exec 9>>.deps-cache/lock
+    python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)'
+    rsync -a --delete --checksum {{ quote(out) }}/ "$mount/"
+
+# Copy the assembled desk into a mounted desk. Files it does not contain are kept.
+install-dev desk: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    desk={{ quote(desk) }}
+    # just runs recipes from this directory; the path is relative to the caller's.
+    mount=$(cd {{ quote(invocation_directory()) }} && cd "$desk" 2>/dev/null && pwd) ||
+      { echo "desk mount '$desk' does not exist" >&2; exit 1; }
+    # Files there with the desk's names are overwritten, so it has to be a desk
+    # mount: a directory in a pier, named as a desk.
+    [[ $(basename "$mount") =~ ^[a-z][a-z0-9-]*$ && -d $mount/../.urb ]] ||
+      { echo "'$desk' is not a desk mounted in a pier" >&2; exit 1; }
+    # Under the build lock, so that no other build changes the desk mid-copy.
+    exec 9>>.deps-cache/lock
+    python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX)'
+    rsync --recursive --checksum {{ quote(out) }}/ "$mount/"
+
+# Run install-dev, then ask the running ship to commit the desk.
+commit desk: (install-dev desk)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mount=$(cd {{ quote(invocation_directory()) }} && cd {{ quote(desk) }} && pwd)
     name=$(basename "$mount") pier=$(dirname "$mount")
     # The mount name becomes a Hoon term in the thread below.
     [[ $name =~ ^[a-z][a-z0-9-]*$ ]] ||
@@ -46,7 +97,7 @@ commit desk: (install desk)
       { echo "Clay commit failed for %$name" >&2; exit 1; }
     echo "Clay commit requested for %$name"
 
-# Fetch the files listed in deps.yaml, at their pinned commits, into desk-deps/.
+# Fetch the files listed in desk-deps.yaml, at their pinned commits, into desk-deps/.
 fetch:
     scripts/fetch-deps.sh
 
